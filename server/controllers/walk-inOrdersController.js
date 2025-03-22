@@ -126,13 +126,16 @@ const walk_inparcelDetails = async (req, res) => {
 };
 
 const walk_inOrderCreation = async (req, res) => {
-  const sender = req.session.sender;
-  const receiver = req.session.receiver;
-  const parcels = req.session.parcels;
-  const total_cost = req.session.total_cost;
+  const {county, sender, receiver, parcels, total_cost} = req.body;
+  const senderjson = JSON.parse(sender);
+  const receiverjson = JSON.parse(receiver);
+ 
+  console.log(total_cost);
+  console.log(sender);
+  console.log(receiver);
 
   // Validate sender and receiver data
-  if (!sender || !receiver || ! total_cost) {
+  if (!sender || !receiver || total_cost < 0 ) {
     return res.status(400).json({ error: "Sender,receiver or total cost details are missing in session" });
   };
 
@@ -143,12 +146,14 @@ const walk_inOrderCreation = async (req, res) => {
       SELECT route_id, direction, sequence_order 
       FROM routes 
       WHERE 
-        JSON_CONTAINS(sequence_order, ?) 
-        AND JSON_CONTAINS(sequence_order, ?)
+        JSON_CONTAINS(sequence_order, JSON_QUOTE(?)) 
+        AND JSON_CONTAINS(sequence_order, JSON_QUOTE(?))
+
       `,
-      [JSON.stringify(sender.county), JSON.stringify(receiver.county)]
+      [county, receiverjson.county]
      );
-      console.log(routes);
+      console.log(county);
+      console.log(receiverjson.county);
 
       let validRoute = []; // Store the selected route
 
@@ -156,8 +161,8 @@ const walk_inOrderCreation = async (req, res) => {
       for (const route of routes) {
         const sequence = route.sequence_order; // Use existing sequence_order
       
-        const senderIndex = sequence.indexOf(sender.county);
-        const receiverIndex = sequence.indexOf(receiver.county);
+        const senderIndex = sequence.indexOf(county);
+        const receiverIndex = sequence.indexOf(receiverjson.county);
       
         if (senderIndex !== -1 && receiverIndex !== -1) {
           if (senderIndex < receiverIndex && route.direction === 'forward') {
@@ -182,37 +187,35 @@ const walk_inOrderCreation = async (req, res) => {
    // Use the first valid route (or let the user choose)
    const selectedRoute = validRoute[0];
 
+   console.log(selectedRoute);
+
     // Assign route_id and direction to the order
     const order = {
       route_id: selectedRoute.route_id,
       direction: selectedRoute.direction,
-      current_county_office: sender.county,
-      senderName: sender.name,
-      senderEmail: sender.email,
-      senderPhone_number: sender.phone_number,
-      pickupCounty: sender.county,
-      pickupbuilding_name: sender.building_name,
-      pickupnearest_landmark: sender.nearest_landmark,
-      receiverName: receiver.name,
-      receiverEmail: receiver.email,
-      receiverPhone_number: receiver.phone_number,
-      deliverCounty: receiver.county,
-      delivery_street_name: receiver.street_name,
-      delivery_building_name: receiver.building_name,
-      delivery_nearest_landmark: receiver.nearest_landmark,
-      status: 'waiting transit',
+      current_county_office: `${county} office`,
+      senderName: senderjson.name,
+      senderEmail: senderjson.email,
+      senderPhone_number: senderjson.phone_number,
+      pickupCounty: county,
+      pickupbuilding_name:`${county} office`,
+      receiverName: receiverjson.name,
+      receiverEmail: receiverjson.email,
+      receiverPhone_number: receiverjson.phone_number,
+      deliverCounty: receiverjson.county,
+      delivery_street_name: receiverjson.street_name,
+      delivery_building_name: receiverjson.building_name,
+      delivery_nearest_landmark: receiverjson.nearest_landmark,
+      status: 'Awaiting Confirmation',
       total_cost: total_cost
     };
 
     // Insert the order into the database
     const [result] = await db.query("INSERT INTO tempOrders SET ?", [order]);
 
-    if (result.affectedRows === 1) {
-      res.status(201).json({ message: "Order created successfully", order });
-    } else {
-      return res.status(500).json({ error: "Failed to create order" });
-    }
-
+    if (result.affectedRows !== 1) {
+      return res.status(500).json({ error: "Failed to create order" });   
+    } 
     if (parcels.length === 0) {
       throw new Error("No parcels provided for the order");
     }
@@ -229,17 +232,42 @@ const walk_inOrderCreation = async (req, res) => {
     await db.query("INSERT INTO parcels (order_id, content, weight, number_of_pieces, payment_amount) VALUES ?", [
     parcelData.map((parcel) => [parcel.order_id, parcel.content, parcel.weight, parcel.number_of_pieces, parcel.payment_amount]),
     ]);
-    res.status(200).json({message: 'order and parcel added successfully'})
+    return res.status(200).json({
+      message: 'order and parcel added successfully',
+      order_id : result.insertId
+    })
   } catch (err) {
     console.error("Error in orderCreation:", err);
     return res.status(500).json({ error: err.message });
   }
 };
 
+const orderManagerConfirmOrder = async (req, res) => {
+  const {order_id, payment_mode} = req.body;
+
+  if(!order_id || !payment_mode){
+    return res.status(400).json({message: 'order_id or payment_mode cannot be null'})
+  }
+
+  try{
+    await db.query(`
+      UPDATE temporders
+      SET payment_mode = ?, status= ?
+      WHERE order_id = ?;
+      `,
+    [payment_mode, 'Waiting Transit', order_id]);
+
+    return res.status(200).json({message: 'The order is confirmed'})
+  }catch(error){
+    return res.status(500).json({error: error.message});
+  }
+}
+
 
 module.exports = {
 walk_inSenderDetails,
 walk_inReceiverDetails,
 walk_inparcelDetails,
-walk_inOrderCreation
+walk_inOrderCreation,
+orderManagerConfirmOrder
 }

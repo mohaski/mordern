@@ -22,6 +22,7 @@ const ProtectedRoute = ({ allowedRoles = [], children }) => {
     const roleRoutes = {
       cashier: '/cashier',
       driver: '/driver',
+      transit_driver: '/transit_driver',
       office_manager: '/office'
     };
     return <Navigate to={roleRoutes[user.role] || '/'} replace />;

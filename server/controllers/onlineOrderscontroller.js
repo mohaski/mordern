@@ -10,25 +10,33 @@ const generateTrackingNumber = async () => {
     return uuid.v4(); // Generates a unique ID like '550e8400-e29b-41d4-a716-446655440000'
 }
 
-const africastalking = require("africastalking")({
-  apiKey: process.env.africastalking_auth_token,
-  username: "ModernCargo", // Provided during signup
-});
+// Import correction (should be require instead of import for CommonJS)
+require('dotenv').config(); // Load environment variables from .env file
 
-const sms = africastalking.SMS;
+// Looking to send emails in production? Check out our Email API/SMTP product!
+const nodemailer = require("nodemailer");
+const { MailtrapClient } = require("mailtrap");
 
-async function sendSMS(to, message) {
-  try {
-    const response = await sms.send({
-      to: [to],
-      message,
-      from: "Modern Courier", // Optional sender ID
-    });
-    console.log("SMS sent successfully:", response);
-  } catch (error) {
-    console.error("Error sending SMS:", error);
-  }
-}
+const TOKEN = "47549598efe2da0d422d7958af67cf69";
+
+const sendEmail = (senderEmail,senderName, recipientsEmail) => {
+  const client = new MailtrapClient({ token: TOKEN });
+
+  const sender = { name: senderName, email: senderEmail };
+
+  client
+    .send({
+      from: sender,
+      to: [{ email: recipientsEmail }],
+      subject: "Hello from Mailtrap!",
+      text: "Welcome to Mailtrap Sending!",
+    })
+    .then(console.log)
+    .catch(console.error);
+};
+
+
+
 
 
 const senderDetails = async(req, res)=> {
@@ -243,6 +251,7 @@ const orderCreation = async (req, res) => {
     await db.query("INSERT INTO parcels (order_id, content, weight, number_of_pieces) VALUES ?", [
     parcelData.map((parcel) => [parcel.order_id, parcel.content, parcel.weight, parcel.number_of_pieces]),
     ]);
+    sendEmail('mohaski24@gmail.com', 'Modern Cargo', 'brotherlyreminder@gmail.com');
     res.status(200).json({
       message: 'order and parcel added successfully',
       order_id: result.insertId

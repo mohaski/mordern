@@ -13,7 +13,8 @@ const {
   walk_inSenderDetails,
   walk_inReceiverDetails,
   walk_inparcelDetails,
-  walk_inOrderCreation
+  walk_inOrderCreation,
+  orderManagerConfirmOrder
 } = require('../controllers/walk-inOrdersController');
 
 const {
@@ -47,6 +48,8 @@ router.post("/walk-in/senderDetails", walk_inSenderDetails);
 router.post("/walk-in/sendersDetails/receiverDetails", walk_inReceiverDetails);
 router.post("/walk-in/sendersDetails/receiverDetails/parcelDetails", walk_inparcelDetails)
 router.post("/walk-in/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation", walk_inOrderCreation);
+router.post("/walk-in/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation/orderManagerconfirmOrder", orderManagerConfirmOrder);
+
 
 router.get("/cashier/pendingPayments", getPendingPayments);
 router.get("/cashier/pendingPayments/payment/:order_id", getPayment);

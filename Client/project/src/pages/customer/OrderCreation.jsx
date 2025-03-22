@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { Package, CreditCard, Check, Banknote } from 'lucide-react';
 import { paymentStatus, createOrder } from '../../services/api';
 
+
 const STORAGE_KEY = 'orderCreationState';
 
 
@@ -135,9 +136,26 @@ const OrderCreation = () => {
 
       sessionStorage.setItem('order_id', response.data.order_id);
       setStep(4);
+      // Start polling immediately after reaching step 4
+      await fetchCostImmediately(); // Add immediate fetch
       startPollingCost();
     }
   };
+
+  // Immediate cost fetch function
+const fetchCostImmediately = async () => {
+  try {
+    const order_id = sessionStorage.getItem('order_id');
+    const response = await paymentStatus(order_id);
+    const data = response.data.order[0][0];
+    setUpdatedCostOrder(data);
+    if (data.total_cost > 0) {
+      setOrderCost(data.total_cost);
+    }
+  } catch (error) {
+    console.error('Error fetching initial cost:', error);
+  }
+};
 
   // Polling for order cost
   const startPollingCost = () => {
@@ -148,7 +166,7 @@ const OrderCreation = () => {
         const response = await paymentStatus(order_id);
         console.log(response.data.order[0][0])
         const data = response.data.order[0][0];
-        setUpdatedCostOrder(data)
+        setUpdatedCostOrder(data);
         console.log(updatedCostOrder)
         if (data.total_cost > 0) {
           setOrderCost(data.total_cost);
@@ -538,7 +556,7 @@ const OrderCreation = () => {
             <div className="flex justify-center">
               <button
                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                onClick={() => console.log('Confirm order')}
+                onClick={() => sendMessage()}
               >
                 Confirm Order
               </button>

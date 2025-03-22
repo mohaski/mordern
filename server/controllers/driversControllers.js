@@ -2,6 +2,24 @@ const mysql = require("mysql2/promise");
 const config = require("../config/config");
 const db = mysql.createPool(config);
 
+const getParcelDetails = async (req, res) => {
+  const order_id = req.params;
+
+  if(!order_id)  return res.status(400).json({message: 'order_id must be provided from req.body'});
+
+  try {
+    const [parcels] = await db.query(`SELECT * FROM parcels WHERE order_id = ?`, [order_id.order_id]);
+    console.log(order_id)
+    console.log(parcels);
+    return res.status(200).json({
+      message: 'Parcel details retrieved successfully',
+      parcels
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
 ////  COUNTY DRIVERS   /////
 const getPickupTasks = async (req, res) => {
   const { county  } = req.user;
@@ -54,7 +72,7 @@ const getOrderParcelDetails = async (req, res) => {
    
      console.log(details);
    
-     res.status(200).json({message: 'order and parcel details successfully retreaved.',
+     res.status(200).json({message: 'order and parcel details successfully retreaved .',
        details
      })
   }catch(error){
@@ -195,18 +213,22 @@ const confirmDropoffPickup = async (req, res) => {
 }
 
 const confirmDelivery = async (req, res) => {
-  const { orderId } = req.params;
+  const { order_id, payment_mode } = req.body;
   const { user_id } = req.user;
+
+  console.log(payment_mode);
+
+  if(!order_id || !user_id) return res.status(400).json({message: 'order_id and user_id cannot be null'});
 
   try {
     await db.query(
-      'UPDATE orders SET status = "Delivered", assigned_county_driver_id = ? WHERE order_id = ?',
-      [user_id, orderId]
+      'UPDATE temporders SET status = ?, assigned_county_driver_id = ?, payment_mode= ? WHERE order_id = ?',
+      [ "Delivered", user_id, payment_mode, order_id ]
     );
 
     return res.json({
       message: 'Parcel delivered successfully',
-      order_id: orderId,
+      order_id: order_id,
       status: 'Delivered',
     });
   } catch (error) {
@@ -219,20 +241,26 @@ const confirmDelivery = async (req, res) => {
 ///// TRANSIT DRIVERS  ///////
 
 const checkIn = async (req, res) => {
-  const { county } = req.body;
+  const { currentLocation } = req.body;
   const { user_id } = req.user;
+
+
+  if(!currentLocation || !user_id) return res.status(400).json({message: 'county and user_id must be provided'});
 
   try {
    const [result] = await db.query('INSERT INTO checkins (driver_id, county) VALUES (?, ?)', [
       user_id,
-      county,
+      currentLocation,
     ]);
+    
 
-    req.session.checkin = result
+    if(result.affectedRows === 0 ) return res.status(400).json({message: 'checkin was not added in database'});
 
-    res.json({ message: `Checked into ${county} successfully` });
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    //req.session.checkin = result
+
+    return res.status(200).json({ message: `Checked into ${currentLocation} successfully` });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -250,16 +278,18 @@ const getAvailableTransfers = async (req, res) => {
 
 
     const currentCounty = checkins[0].county;
+    console.log(currentCounty)
 
     // Get transfers in current county
     const [transfers] = await db.query(
-      'SELECT * FROM orders WHERE status = "Waiting Transit" AND current_county_office = ? AND route_id = ? AND direction = ?',
+      'SELECT * FROM temporders WHERE status = "Waiting Transit" AND current_county_office = ? AND route_id = ? AND direction = ?',
       [currentCounty, route_id, current_direction]
     );
 
     return res.status(200).json({
       message: `fetching available transfers in ${currentCounty} office successful `,
-      transfers});
+      transfers
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message});
   }
@@ -297,52 +327,79 @@ const getOrderParcelDetailsofTransfers = async(req, res) => {
 }
 
 const confirmPickupforTransfer = async (req, res) => {
-  const {orders} = req.body;
-  const {user_id} = req.user;
+  const [orders] = req.body;
+  console.log(orders)
+  const { user_id } = req.user;
   const status = 'in transit';
 
-  try{
-    const [result] = await db.query(`
-      UPDATE temporders 
-      SET status = CASE 
-          ${orders
-            .map((order) => `WHEN ${order.order_id} THEN '${status}'`)
-            .join(" ")} 
-        END
-        assigned_transit_driver_id = CASE 
-          ${orders
-            .map((order) => `WHEN ${order.order_id} THEN '${user_id}'`)
-            .join(" ")} 
-        END
-      WHERE order_id IN (${orders.map((o) => o.order_id).join(",")}) 
-      AND status = 'To be delivered';
-    `)
-
-    if(result.affectedRows < 1){
-      return res.status(400).json({message: 'no orders yet to update pickup '})
+  try {
+    if (!Array.isArray(orders) || orders.length === 0) {
+      return res.status(400).json({ message: 'No orders provided for pickup.' });
     }
 
-    return res.status(200).json({message: 'status updated to Waiting transit for all pickedup orders'})
-  }catch(error){
-    return res.status(500).json({error: error.message})
+    // Validate that all orders have valid order_id
+    const validOrders = orders.filter(order => order && typeof order.order_id === 'number');
+    if (validOrders.length === 0) {
+      return res.status(400).json({ message: 'No valid order IDs provided.' });
+    }
+
+    const query = `
+      UPDATE temporders 
+      SET 
+        status = CASE 
+          ${validOrders
+            .map((order) => `WHEN order_id = ${order.order_id} THEN '${status}'`)
+            .join(" ")}
+        END,
+        assigned_transit_driver_id = CASE 
+          ${validOrders
+            .map((order) => `WHEN order_id = ${order.order_id} THEN '${user_id}'`)
+            .join(" ")}
+        END
+      WHERE order_id IN (${validOrders.map((o) => o.order_id).join(",")}) 
+      AND status = 'Waiting Transit';
+    `;
+
+    console.log('Generated SQL:', query); // Debug log
+    const [result] = await db.query(query);
+
+    if (result.affectedRows < 1) {
+      return res.status(400).json({ message: 'No orders were updated. They may already be picked or delivered.' });
+    }
+
+    return res.status(200).json({ message: 'Status updated to "in transit" for all picked-up orders.' });
+
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
-}
+};
 
 
 const getOrdersToBedroppedOff = async (req, res) => {
-  const checkin = req.session.checkin
-  const current_county_office = checkin.current_county_office
+const {user_id} = req.user;
+console.log(user_id)
+
+  const [checkedCounty] = await db.query(
+    'SELECT county FROM checkins WHERE driver_id = ? ORDER BY checkin_time DESC LIMIT 1',
+    [user_id]
+  );
+
+  //console.log(checkedCounty);
+
+  if(!checkedCounty || checkedCounty.length === 0) return res.status(400).json({message: 'checkedCounty is empty'})
+  const current_county_office = checkedCounty[0].county;
+  console.log(current_county_office);
 
   try {
 
     // Get transfers in current county
     const [dropOffs] = await db.query(
-      'SELECT * FROM temporders WHERE status = ? AND deliverCounty = ? ',
-      [ "in Transit", current_county_office ]
+      'SELECT * FROM temporders WHERE status = ? AND deliverCounty = ? AND assigned_transit_driver_id = ? ',
+      [ "In Transit", current_county_office, user_id ]
     );
 
     return res.status(200).json({
-      message: `fetching to be droppedoff order in ${currentCounty} office successful `,
+      message: `fetching to be droppedoff order in ${current_county_office} office successful `,
       dropOffs
     });
   } catch (error) {
@@ -383,7 +440,10 @@ const getOrderParcelDetailsofDropoff = async (req, res) => {
 }
 
 const confirmDropoff = async (req, res) => {
-  const {orders} = req.body;
+  const [orderIds] = req.body;
+
+  console.log(orderIds)
+
   const {user_id} = req.user;
   const status = 'to be delivered';
 
@@ -391,17 +451,17 @@ const confirmDropoff = async (req, res) => {
     const [result] = await db.query(`
       UPDATE temporders 
       SET status = CASE 
-          ${orders
-            .map((order) => `WHEN ${order.order_id} THEN '${status}'`)
+          ${orderIds
+            .map((id) => `WHEN ${id} THEN '${status}'`)
             .join(" ")} 
-        END
+        END,
         assigned_transit_driver_id = CASE 
-          ${orders
-            .map((order) => `WHEN ${order.order_id} THEN '${user_id}'`)
+          ${orderIds
+            .map((id) => `WHEN ${id} THEN '${user_id}'`)
             .join(" ")} 
         END
-      WHERE order_id IN (${orders.map((o) => o.order_id).join(",")}) 
-      AND status = 'To be delivered';
+      WHERE order_id IN (${orderIds.map((id) => id).join(",")}) 
+      AND status = 'In Transit';
     `)
 
     if(result.affectedRows < 1){
@@ -412,13 +472,95 @@ const confirmDropoff = async (req, res) => {
   }catch(error){
     return res.status(500).json({error: error.message})
   }
+};
+
+const getDriverRoute = async(req, res) => {
+  const {route_id} = req.user;
+
+  if(!route_id) res.status(400).json({message: 'route id is null'});
+  console.log(route_id);
+
+  try {
+    const [routes] = await db.query('SELECT * FROM routes WHERE route_id = ?', [route_id]);
+    console.log('Route:', routes);
+
+    if (routes.length === 0) {
+      return res.status(404).json({
+        message: 'Route not found'
+      });
+    }
+
+    const route = routes[0]; // Get the first row
+
+    return res.status(200).json({
+      message: 'Route details retrieved',
+      route: {
+        route_id: route.route_id,
+        sequence_order: route.sequence_order || [] // Ensure sequence_order is an array
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching route:', err);
+    return res.status(500).json({
+      message: 'Error fetching route',
+      error: err.message
+    });
+  }
 }
+
+const directionChange = async (req, res) => {
+  const { user_id } = req.user;
+
+  try {
+    // Fetch current direction and route_id
+    const [rows] = await db.query(
+      `SELECT current_direction, route_id FROM users WHERE user_id = ?`,
+      [user_id]
+    );
+
+    const userData = rows[0];
+
+    if (!userData) {
+      return res.status(400).json({ message: 'User data not found!' });
+    }
+
+    let newDirection;
+    let newRouteId;
+
+    if (userData.current_direction === 'forward') {
+      newDirection = 'reverse';
+      newRouteId = userData.route_id + 1;
+    } else if (userData.current_direction === 'reverse') {
+      newDirection = 'forward';
+      newRouteId = userData.route_id - 1;
+    } else {
+      return res.status(400).json({ message: 'Invalid current_direction value!' });
+    }
+
+    // Update new direction and new route_id
+    const [result] = await db.query(
+      `UPDATE users SET current_direction = ?, route_id = ? WHERE user_id = ?`,
+      [newDirection, newRouteId, user_id]
+    );
+
+    return res.status(200).json({
+      message: `Direction updated to ${newDirection}, route_id is now ${newRouteId}`,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+
 
 
 /////////////////////////////////////////////////////////////////
 
 module.exports = { 
   checkIn, 
+  getDriverRoute,
+  directionChange,
   getAvailableTransfers, 
   getPickupTasks, 
   confirmPickup, 
@@ -426,5 +568,10 @@ module.exports = {
   confirmDelivery, 
   getOrderParcelDetails, 
   confirmPickupDropoff, 
-  getPickedOrders
+  getPickedOrders,
+  getParcelDetails,
+  getAvailableTransfers,
+  getOrdersToBedroppedOff,
+  confirmDropoff,
+  confirmPickupforTransfer
 };

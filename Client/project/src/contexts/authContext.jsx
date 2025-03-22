@@ -18,6 +18,10 @@ const roleConfig = {
       { path: '/driver/history', label: 'Delivery History' }
     ]
   },
+  transit_driver: {
+    defaultRoute: '/transit_driver/',
+    routes: []
+  },
   office_manager: {
     defaultRoute: '/office/',
     routes: [

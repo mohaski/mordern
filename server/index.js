@@ -43,5 +43,5 @@ app.use("/", driverOperationsRoutes);
 connectDB();
 app.listen(port, () => {
   // console.log(`server running on port ${process.env.PORT}`);
-  console.log(`server running on port ${port}`);
+  console.log(`server running on port ${port}`)
 });

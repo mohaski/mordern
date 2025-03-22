@@ -1,7 +1,7 @@
-import React from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/authContext';
-import ProtectedRoute from './components/ProtectedRoute';
+import ProtectedRoute from './components/protectedRoute';
 import Login from './pages/login';
 import CustomerHome from './pages/customer/CustomerHome';
 import OrderCreation from './pages/customer/OrderCreation';
@@ -10,8 +10,9 @@ import ManagerOrderCreation from './pages/manager/managerOrderCreation';
 import ManagerDashboard from './pages/manager/ManagerDashboard';
 import OrderCostUpdate from './pages/manager/OrderCostUpdate';
 import Layout from './components/Layout';
-import OrderDetails from './pages/manager/orderDetails';
+import OrderDetails from './pages/manager/OrderDetails';
 import CountyDriverDashboard from './pages/drivers/countyDrivers/CountyDriverDashboard';
+import TransitDriverDashboard from './pages/drivers/transitDrivers/TransitDriverDashboard';
 
 
 
@@ -48,14 +49,21 @@ function App() {
             <Route path="orders/:order_id" element={<OrderDetails />} />
           </Route>
 
-            {/* Protected Driver Routes */}
-            <Route path="/driver" element={
-            <ProtectedRoute allowedRoles={['driver']}>
-              <Layout />
-            </ProtectedRoute>
-          }>
-            <Route index element={<CountyDriverDashboard />} />
-          </Route>
+          {/* Protected Driver Routes */}
+          <Route path="/driver" element={
+          <ProtectedRoute allowedRoles={['driver']}>
+            <Layout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<CountyDriverDashboard />} />
+        </Route>
+
+        {/* Protected Transit Driver Routes */}
+        <Route path="/transit_driver" element={
+          <ProtectedRoute allowedRoles={['transit_driver']}>
+            <Layout><TransitDriverDashboard /></Layout>
+          </ProtectedRoute>
+        } />
 
           {/* Protected Office Manager Routes */}
           <Route path="/office" element={

@@ -73,7 +73,7 @@ const ManagerDashboard = () => {
             <p className="text-gray-600 mt-1">Overview of orders and operations</p>
           </div>
           <Link
-            to="/manager/create-order"
+            to="/cashier/create-order"
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 transition-colors duration-200"
           >
             <Package className="h-5 w-5 mr-2" />

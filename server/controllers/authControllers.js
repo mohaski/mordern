@@ -23,7 +23,7 @@ const generateAccessToken = (user) => {
 
 const register = async (req, res) => {
   const { email, role, county, } = req.body;
-  if (!email || !role || !county) {
+  if (!email || !role ) {
     res.status(400).json({
       error: "Email, role or county fields cannot be empty!",
     });
@@ -135,33 +135,59 @@ const login = async (req, res) => {
 };
 
 const changePassword = async (req, res) => {
-  const { password, confirmPassword } = req.body;
+  const { currentPassword, newPassword, confirmPassword } = req.body; // Changed variable names for clarity
   const email = req.user.email;
-  if (!password || !confirmPassword) {
-    return res
-      .status(401)
-      .json({ message: "password or confirmPassword fields cannot be empty" });
-  }
 
-  if (password !== confirmPassword) {
+  // Validate all required fields
+  if (!currentPassword || !newPassword || !confirmPassword) {
     return res.status(400).json({
-      message: "The password and confirmPassword have to match exactly!!",
+      message: "All fields (current password, new password, confirm password) are required"
     });
   }
 
-  const validationErrors = await passwordValidator(password);
+  // Verify current password matches
+  try {
+    // Get user's current password hash from database
+    const user = await checkRecordExists("users", "email", email); 
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Compare provided current password with stored hash
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+  } catch (error) {
+    return res.status(500).json({ message: "Error verifying current password" });
+  }
+
+  // Validate new password matches confirmation
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({
+      message: "New password and confirmation password must match"
+    });
+  }
+
+  // Validate new password strength
+  const validationErrors = passwordValidator(newPassword);
   if (validationErrors.length > 0) {
-    return  res.status(400).json({
-      message: "Password validation failed.",
-      errors: validationErrors, // Return all validation errors
+    return res.status(400).json({
+      message: "Password validation failed",
+      errors: validationErrors
     });
   }
 
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(password, salt);
-
-  await updateRecord("users", "password", "email", email, hashedPassword);
-  res.status(201).json({ message: "password changed successfully" });
+  // Hash and update password
+  try {
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    
+    await updateRecord("users", "password", "email", email, hashedPassword);
+    return res.status(200).json({ message: "Password changed successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: "Error updating password" });
+  }
 };
 
 const logOut = async (req, res) => {

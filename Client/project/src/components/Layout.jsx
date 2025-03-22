@@ -1,7 +1,9 @@
+
 import React, { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { Package, Truck, Home, LogOut, Menu, X, FileText, ClipboardList, History } from "lucide-react";
-import { useAuth } from "../contexts/authContext";
+import UserAccountMenu from "./UserAccountMenu";
+import { useAuth } from "../contexts/authContext"; // Correct import path
 
 const Layout = ({ children }) => {
   const location = useLocation();
@@ -38,6 +40,9 @@ const Layout = ({ children }) => {
     driver: [
       { path: "/driver", label: "My Deliveries", icon: <Truck className="h-5 w-5 mr-1" /> },
       { path: "/driver/history", label: "Delivery History", icon: <History className="h-5 w-5 mr-1" /> }
+    ],
+    transit_driver: [
+      { path: "/transit_driver", label: "Dashboard", icon: <Truck className="h-5 w-5 mr-1" /> }
     ],
     office_manager: [
       { path: "/office", label: "Dashboard", icon: <Home className="h-5 w-5 mr-1" /> },
@@ -82,8 +87,22 @@ const Layout = ({ children }) => {
             </div>
 
             {/* Desktop Navigation */}
-            <div className="hidden sm:flex sm:space-x-8 items-center">
+            <div className="hidden sm:flex items-center">
+              <div className="mr-8">
               {getNavLinks()}
+              </div>
+              {user && (
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={handleLogout}
+                    className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-red-600 hover:text-red-900 focus:outline-none"
+                  >
+                    <LogOut className="h-5 w-5 mr-1" />
+                    Logout
+                  </button>
+                  <UserAccountMenu />
+                </div>
+              )}
             </div>
 
             {/* Mobile Menu Toggle */}
@@ -94,16 +113,6 @@ const Layout = ({ children }) => {
               {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
 
-            {/* Logout Button */}
-            {user && (
-              <button
-                onClick={handleLogout}
-                className="hidden sm:inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-red-600 hover:text-red-900 focus:outline-none"
-              >
-                <LogOut className="h-5 w-5 mr-1" />
-                Logout
-              </button>
-            )}
           </div>
         </div>
 
@@ -112,13 +121,16 @@ const Layout = ({ children }) => {
           <div className="sm:hidden bg-white shadow-md p-4 space-y-4">
             {getNavLinks()}
             {user && (
-              <button
-                onClick={handleLogout}
-                className="w-full text-left text-red-600 hover:text-red-900 flex items-center"
-              >
-                <LogOut className="h-5 w-5 mr-2" />
-                Logout
-              </button>
+              <div className="border-t pt-4 mt-4">
+                <UserAccountMenu />
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left text-red-600 hover:text-red-900 flex items-center mt-4"
+                >
+                  <LogOut className="h-5 w-5 mr-2" />
+                  Logout
+                </button>
+              </div>
             )}
           </div>
         )}

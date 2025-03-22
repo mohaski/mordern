@@ -4,11 +4,11 @@ import { useAuth } from "../contexts/authContext";
 import { Package, Loader } from "lucide-react";
 
 const Login = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [credentials, setCredentials] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
-  const location = useLocation();
   const { login } = useAuth();
 
   const handleChange = (e) => {
@@ -24,7 +24,7 @@ const Login = () => {
       const user = await login(credentials.email, credentials.password);
       if (!user || !user.role) throw new Error("Invalid role or user data.");
       
-      const redirectTo = location.state?.from || user.defaultRoute;
+      const redirectTo = location?.state?.from || user.defaultRoute;
       navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(err.message || "An error occurred during login.");

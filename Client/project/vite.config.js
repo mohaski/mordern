@@ -16,7 +16,7 @@ export default defineConfig({
       }
     },
     headers: {
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Cache-Control': 'no-cache',
     }
   }
 });
