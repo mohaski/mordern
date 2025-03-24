@@ -1,7 +1,7 @@
 
 import React, { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { Package, Truck, Home, LogOut, Menu, X, FileText, ClipboardList, History } from "lucide-react";
+import { Package, Truck, Home, LogOut, Menu, X, FileText, ClipboardList, History, Users } from "lucide-react";
 import UserAccountMenu from "./UserAccountMenu";
 import { useAuth } from "../contexts/authContext"; // Correct import path
 
@@ -39,14 +39,13 @@ const Layout = ({ children }) => {
     ],
     driver: [
       { path: "/driver", label: "My Deliveries", icon: <Truck className="h-5 w-5 mr-1" /> },
-      { path: "/driver/history", label: "Delivery History", icon: <History className="h-5 w-5 mr-1" /> }
     ],
     transit_driver: [
       { path: "/transit_driver", label: "Dashboard", icon: <Truck className="h-5 w-5 mr-1" /> }
     ],
     office_manager: [
-      { path: "/office", label: "Dashboard", icon: <Home className="h-5 w-5 mr-1" /> },
-      { path: "/office/reports", label: "Reports", icon: <ClipboardList className="h-5 w-5 mr-1" /> }
+      { path: '/office', label: 'Reports', icon: <ClipboardList className="h-5 w-5 mr-1" /> },
+      { path: '/office/staff', label: 'Staff Management', icon: <Users className="h-5 w-5 mr-1" /> }
     ]
   };
 

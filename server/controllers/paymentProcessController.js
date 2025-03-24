@@ -37,19 +37,20 @@ const getPayment = async (req, res) => {
 
 const getPendingPayments = async (req, res) => {
   try {
-    const {county} = req.user;
+    const { county } = req.params;
+    console.log(`${county}001`);
+
     const [orders] = await db.query(
       `SELECT * FROM temporders WHERE status = "Pending Cost Calculation" AND pickupcounty = ?`,
       [county]
     );
-    orderLength = orders.length;
 
-    
-    res.status(200).json({orderLength, orders});
+    res.status(200).json({ orders });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 const processPayment = async (req, res) => {
   const { order_id, amounts, total_cost} = req.body;

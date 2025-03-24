@@ -13,9 +13,8 @@ import Layout from './components/Layout';
 import OrderDetails from './pages/manager/OrderDetails';
 import CountyDriverDashboard from './pages/drivers/countyDrivers/CountyDriverDashboard';
 import TransitDriverDashboard from './pages/drivers/transitDrivers/TransitDriverDashboard';
-
-
-
+import StaffManagement from './pages/office/StaffManagement';
+import Reports from './pages/office/Reports';
 function App() {
   return (
     <Router>
@@ -68,7 +67,12 @@ function App() {
           {/* Protected Office Manager Routes */}
           <Route path="/office" element={
             <ProtectedRoute allowedRoles={['office_manager']}>
-              <Layout><div>Office Manager Dashboard</div></Layout>
+              <Layout>
+                <Routes>
+                  <Route index element={<Reports />} />
+                  <Route path="staff" element={<StaffManagement />} />
+                </Routes>
+              </Layout>
             </ProtectedRoute>
           } />
         </Routes>

@@ -25,8 +25,8 @@ const roleConfig = {
   office_manager: {
     defaultRoute: '/office/',
     routes: [
-      { path: '/office', label: 'Office Dashboard' },
-      { path: '/office/reports', label: 'Reports' }
+      { path: '/office', label: 'Reports' },
+      { path: '/office/staff', label: 'Staff Management' }
     ]
   }
 };
@@ -76,7 +76,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Invalid response from server');
       }
       
-      const { user_id, email: userEmail, county, role, access_token } = response.data;
+      const { user_id, email: userEmail, county, role, access_token, route_id } = response.data;
       
       if (!user_id || !role || !access_token) {
         throw new Error('Invalid response data from server');
@@ -87,7 +87,8 @@ export const AuthProvider = ({ children }) => {
         email: userEmail,
         role,
         county,
-        token: access_token
+        token: access_token,
+        route_id
       };
       
       sessionStorage.setItem("user", JSON.stringify(userData));

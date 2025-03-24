@@ -36,7 +36,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use("/", authRoutes);
 
 app.use("/", orderCreationRoutes);
-app.use("/orders/", trackRoutes);
+app.use("/", trackRoutes);
 app.use("/", driverOperationsRoutes);
 
 

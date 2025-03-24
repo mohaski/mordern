@@ -30,6 +30,8 @@ router.post("/online/sendersDetails/receiverDetails", receiverDetails);
 router.post("/online/sendersDetails/receiverDetails/parcelDetails", parcelDetails)
 router.post("/online/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation", orderCreation);
 router.get("/online/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation/waitingPaymentUpdate/:order_id", getOrderpaymentUpdateStatus);
+router.post("/online/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation/waitingPaymentUpdate/:order_id/confirmOrder", confirmOrder);
+
 
 /*
 router.get("/get-session", (req, res) => {
@@ -51,7 +53,7 @@ router.post("/walk-in/sendersDetails/receiverDetails/parcelDetails/orderCreation
 router.post("/walk-in/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation/orderManagerconfirmOrder", orderManagerConfirmOrder);
 
 
-router.get("/cashier/pendingPayments", getPendingPayments);
+router.get("/cashier/pendingPayments/:county", getPendingPayments);
 router.get("/cashier/pendingPayments/payment/:order_id", getPayment);
 
 //router.post("/cashier/pendingPayments/:pendingPayment", getPendingPayment);

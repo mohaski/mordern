@@ -26,13 +26,13 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get('/parcels/:order_id', getParcelDetails);
-router.get('/county_Driver/pickupTasks', getPickupTasks);
+router.get('/county_Driver/pickupTasks/:county', getPickupTasks);
 router.get('/county_Driver//getOrderParcelDetails/:order_id', getOrderParcelDetails);
 router.post('/county_Driver//getOrderParcelDetails/:order_id/confirmPickup', confirmPickup);
 router.get('/county_Driver//getOrderParcelDetails/:order_id/confirmPickup/getPickedOrders', getPickedOrders);
 router.post('/county_Driver//getOrderParcelDetails/:order_id/confirmPickup/getPickedOrders/confirmPickupDropoff', confirmPickupDropoff);
 
-router.get('/county_Driver/DeliveryTasks', getDeliveryTasks)
+router.get('/county_Driver/DeliveryTasks/:county', getDeliveryTasks)
 router.post('/county_Driver/DeliveryTasks/confirmDelivery', confirmDelivery);
 
 

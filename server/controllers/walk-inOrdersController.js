@@ -3,7 +3,22 @@ const config = require("../config/config");
 const db = mysql.createPool(config);
 const validateSender_ReceiverFields = require("../utils/validateSender_ReceiverFields");
 
+function add48HoursToNow() {
+  const now = new Date(); // Current date and time
+  const newDate = new Date(now.getTime() + 48 * 60 * 60 * 1000); // Add 48 hours in milliseconds
 
+  // Format to YYYY-MM-DD HH:MM:SS
+  const year = newDate.getFullYear();
+  const month = String(newDate.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+  const day = String(newDate.getDate()).padStart(2, '0');
+  const hours = String(newDate.getHours()).padStart(2, '0');
+  const minutes = String(newDate.getMinutes()).padStart(2, '0');
+  const seconds = String(newDate.getSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+// Example usage
 const walk_inSenderDetails = async(req, res)=> {
   const county = req.user.county;
   const  building_name = `${req.user.county} office`;
@@ -193,7 +208,7 @@ const walk_inOrderCreation = async (req, res) => {
     const order = {
       route_id: selectedRoute.route_id,
       direction: selectedRoute.direction,
-      current_county_office: `${county} office`,
+      current_county_office: county,
       senderName: senderjson.name,
       senderEmail: senderjson.email,
       senderPhone_number: senderjson.phone_number,
@@ -207,7 +222,8 @@ const walk_inOrderCreation = async (req, res) => {
       delivery_building_name: receiverjson.building_name,
       delivery_nearest_landmark: receiverjson.nearest_landmark,
       status: 'Awaiting Confirmation',
-      total_cost: total_cost
+      total_cost: total_cost,
+      estimated_delivery: add48HoursToNow()
     };
 
     // Insert the order into the database

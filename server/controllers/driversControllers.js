@@ -22,10 +22,11 @@ const getParcelDetails = async (req, res) => {
 
 ////  COUNTY DRIVERS   /////
 const getPickupTasks = async (req, res) => {
-  const { county  } = req.user;
+  const { county } = req.params;
+  console.log(county);
 
   if(!county){
-    return res.status(400).json({mesaage: 'county must be provided from req.user'});
+    return res.status(400).json({message: 'county must be provided from req.user'});
   }
 
   try {
@@ -92,8 +93,8 @@ const confirmPickup = async (req, res) => {
 
   try {
     await db.query(
-      'UPDATE temporders SET status = ?, assigned_county_driver_id = ? WHERE order_id = ?',
-      ["Collected", user_id, order_id]
+      'UPDATE temporders SET status = ?, assigned_county_driver_id = ?, pickup_time = ? WHERE order_id = ?',
+      ["Collected", user_id, new Date(), order_id]
     );
 
     return res.status(200).json({
@@ -133,7 +134,7 @@ const getPickedOrders = async (req, res) => {
 };
 
 const confirmPickupDropoff = async (req, res) =>{
-  const {orders} = req.body;
+  const [orders] = req.body;
   const status = 'Waiting transit'
 
   try{
@@ -162,7 +163,7 @@ const confirmPickupDropoff = async (req, res) =>{
 
 ////delivery processes////
 const getDeliveryTasks = async (req, res) => {
-  const { county } = req.user;
+  const { county } = req.params;
 
   try {
     const [orders] = await db.query(
@@ -222,8 +223,8 @@ const confirmDelivery = async (req, res) => {
 
   try {
     await db.query(
-      'UPDATE temporders SET status = ?, assigned_county_driver_id = ?, payment_mode= ? WHERE order_id = ?',
-      [ "Delivered", user_id, payment_mode, order_id ]
+      'UPDATE temporders SET status = ?, assigned_county_driver_id = ?, payment_mode = ?, delivery_time = ? WHERE order_id = ?',
+      [ "Delivered", user_id, payment_mode, new Date(), order_id ]
     );
 
     return res.json({
@@ -330,7 +331,7 @@ const confirmPickupforTransfer = async (req, res) => {
   const [orders] = req.body;
   console.log(orders)
   const { user_id } = req.user;
-  const status = 'in transit';
+  const status = 'In Transit';
 
   try {
     if (!Array.isArray(orders) || orders.length === 0) {
@@ -344,21 +345,27 @@ const confirmPickupforTransfer = async (req, res) => {
     }
 
     const query = `
-      UPDATE temporders 
-      SET 
-        status = CASE 
-          ${validOrders
-            .map((order) => `WHEN order_id = ${order.order_id} THEN '${status}'`)
-            .join(" ")}
-        END,
-        assigned_transit_driver_id = CASE 
-          ${validOrders
-            .map((order) => `WHEN order_id = ${order.order_id} THEN '${user_id}'`)
-            .join(" ")}
-        END
-      WHERE order_id IN (${validOrders.map((o) => o.order_id).join(",")}) 
-      AND status = 'Waiting Transit';
-    `;
+  UPDATE temporders 
+  SET 
+    status = CASE 
+      ${validOrders
+        .map((order) => `WHEN order_id = ${order.order_id} THEN '${status}'`)
+        .join(" ")}
+    END,
+    assigned_transit_driver_id = CASE 
+      ${validOrders
+        .map((order) => `WHEN order_id = ${order.order_id} THEN '${user_id}'`)
+        .join(" ")}
+    END,
+    transit_start_time = CASE 
+      ${validOrders
+        .map((order) => `WHEN order_id = ${order.order_id} THEN '${new Date().toISOString().slice(0, 19).replace('T', ' ')}'`)
+        .join(" ")}
+    END
+  WHERE order_id IN (${validOrders.map((o) => o.order_id).join(",")}) 
+  AND status = 'Waiting Transit';
+`;
+
 
     console.log('Generated SQL:', query); // Debug log
     const [result] = await db.query(query);
@@ -441,11 +448,15 @@ const getOrderParcelDetailsofDropoff = async (req, res) => {
 
 const confirmDropoff = async (req, res) => {
   const [orderIds] = req.body;
-
-  console.log(orderIds)
-
   const {user_id} = req.user;
-  const status = 'to be delivered';
+
+
+  const [checkins] = await db.query(
+    'SELECT county FROM checkins WHERE driver_id = ? ORDER BY checkin_time DESC LIMIT 1',
+    [user_id]
+  );
+
+    const status = 'to be delivered';
 
   try{
     const [result] = await db.query(`
@@ -455,9 +466,9 @@ const confirmDropoff = async (req, res) => {
             .map((id) => `WHEN ${id} THEN '${status}'`)
             .join(" ")} 
         END,
-        assigned_transit_driver_id = CASE 
+        current_county_office = CASE 
           ${orderIds
-            .map((id) => `WHEN ${id} THEN '${user_id}'`)
+            .map((id) => `WHEN ${id} THEN '${checkins[0].county}'`)
             .join(" ")} 
         END
       WHERE order_id IN (${orderIds.map((id) => id).join(",")}) 
@@ -474,10 +485,13 @@ const confirmDropoff = async (req, res) => {
   }
 };
 
-const getDriverRoute = async(req, res) => {
-  const {route_id} = req.user;
+const getDriverRoute = async (req, res) => {
+  const { route_id } = req.user;
+  console.log(req.user);
 
-  if(!route_id) res.status(400).json({message: 'route id is null'});
+  if (!route_id) {
+    return res.status(400).json({ message: 'route id is null' }); // Add return
+  }
   console.log(route_id);
 
   try {
@@ -506,7 +520,7 @@ const getDriverRoute = async(req, res) => {
       error: err.message
     });
   }
-}
+};
 
 const directionChange = async (req, res) => {
   const { user_id } = req.user;

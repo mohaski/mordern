@@ -58,7 +58,7 @@ export const saveParcels = (parcelsData) => API.post('/online/sendersDetails/rec
 export const createOrder = (sender, receiver, parcels ) => API.post('/online/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation', {sender, receiver, parcels});
 
 // Confirm Order
-export const confirmOrder = (orderId, paymentTime) => API.post('/confirmOrder', { order_id: orderId, payment_time: paymentTime });
+export const confirmOrder = (order_id, payment_time) => API.post(`/online/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation/waitingPaymentUpdate/${order_id}/confirmOrder`, {order_id, payment_time});
 
 // Get Session Data
 export const getSession = () => API.get('/get-session');
@@ -66,12 +66,13 @@ export const getSession = () => API.get('/get-session');
 // get payment status
 export const paymentStatus = (order_id) => API.get(`/online/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation/waitingPaymentUpdate/${order_id}`);
 
+export const trackOrder = (tracking_number) => API.get(`/customer/order/track/${tracking_number}`);
 
 //////////// order manager ////////////////////
 
 export const walk_inSaveSender = (senderData) => API.post('/walk-in/senderDetails', senderData);
 
-export const getPendingPayments = (county) => API.get('/cashier/pendingPayments', county);
+export const getPendingPayments = (county) => API.get(`/cashier/pendingPayments/${county}`);
 
 export const getPayment = (order_id) => API.get(`/cashier/pendingPayments/payment/${order_id}`);
 
@@ -85,13 +86,15 @@ export const orderManagerConfirmOrder = (order_id, payment_mode ) => API.post('/
 
 /////// county driver ////////////////////////////
 
-export const getPickupTasks = (county) => API.get('/county_Driver/pickupTasks', county)
+export const getPickupTasks = (county) => API.get(`/county_Driver/pickupTasks/${county}`)
 
-export const getDeliveryTasks = (county) => API.get('/county_Driver/DeliveryTasks', county)
+export const getDeliveryTasks = (county) => API.get(`/county_Driver/DeliveryTasks/${county}`)
 
 export const getParcelDetails = (order_id) => API.get(`/parcels/${order_id}`)
 
 export const confirmPickup = (order_id, user_id) => API.post(`/county_Driver//getOrderParcelDetails/:order_id/confirmPickup`, {order_id, user_id});
+
+export const confirmPickupDropoff = (orders) => API.post(`/county_Driver//getOrderParcelDetails/:order_id/confirmPickup/getPickedOrders/confirmPickupDropoff`, [orders]);
 
 export const confirmDelivery = (order_id, user_id, payment_mode) => API.post(`/county_Driver/DeliveryTasks/confirmDelivery`, {order_id, user_id, payment_mode});
 

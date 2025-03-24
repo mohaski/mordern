@@ -1,34 +1,29 @@
 const { checkRecordExists } = require("../utils/sqlFunctions");
-//const ordersSchema = require("../models/ordersModel");
-
 const trackorderStatus = async (req, res) => {
   try {
-    const trackingNumber = req.params.trackingNumber;
-    if (!trackingNumber) {
-      return res.status(400).json({ error: "Tracking number is required!" });
+    const { trackingNumber } = req.params;
+
+    if (!trackingNumber || typeof trackingNumber !== "string" || trackingNumber.trim() === "") {
+      return res.status(400).json({ error: "Valid tracking number is required!" });
     }
 
-    const existingRecord = await checkRecordExists(
-      "orders",
-      "trackingNumber",
-      trackingNumber
-    );
+    // Assuming checkRecordExists returns the full record or null
+    const order = await checkRecordExists("temporders", "tracking_number", trackingNumber);
 
-    if (!existingRecord) {
-      return res.status(400).json({
-        error:
-          "There is no order like this please check tracking number if it is correct!!!",
+    if (!order) {
+      return res.status(404).json({
+        error: "No order found. Please check if the tracking number is correct!",
       });
     }
 
-    /* const orderRecord = await returnRecord(
-      "orders",
-      "trackingNumber",
-      trackingNumber
-    );*/
-    res.status(200).json({ status: existingRecord });
+    // Return more detailed response
+    res.status(200).json({
+      message: 'order details being tracked',
+      trackedOrder: order
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Error tracking order:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 

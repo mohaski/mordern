@@ -205,7 +205,6 @@ const TransitDriverDashboard = () => {
           setOrders(prev => ({
             ...prev,
             available: prev.available.filter(order => !orders.selected.some(s => s.order_id === order.order_id)),
-            dropoff: [...prev.dropoff, ...orders.selected],
             selected: []
           }));
           setActiveTab('dropoff');

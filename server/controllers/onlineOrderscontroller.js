@@ -6,6 +6,24 @@ const db = mysql.createPool(config);
 const validateSender_ReceiverFields = require("../utils/validateSender_ReceiverFields");
 const uuid = require("uuid");
 
+function add48HoursToNow() {
+  const now = new Date(); // Current date and time
+  const newDate = new Date(now.getTime() + 48 * 60 * 60 * 1000); // Add 48 hours in milliseconds
+
+  // Format to YYYY-MM-DD HH:MM:SS
+  const year = newDate.getFullYear();
+  const month = String(newDate.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+  const day = String(newDate.getDate()).padStart(2, '0');
+  const hours = String(newDate.getHours()).padStart(2, '0');
+  const minutes = String(newDate.getMinutes()).padStart(2, '0');
+  const seconds = String(newDate.getSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+// Example usage
+console.log(add48HoursToNow()); // e.g., "2025-03-25 14:30:45" (48 hours from now)
+
 const generateTrackingNumber = async () => {
     return uuid.v4(); // Generates a unique ID like '550e8400-e29b-41d4-a716-446655440000'
 }
@@ -229,6 +247,7 @@ const orderCreation = async (req, res) => {
       delivery_street_name: receiverjson.street_name,
       delivery_building_name: receiverjson.building_name,
       delivery_nearest_landmark: receiverjson.nearest_landmark,
+      estimated_delivery: add48HoursToNow()
     };
 
     // Insert the order into the database
@@ -282,14 +301,15 @@ const getOrderpaymentUpdateStatus = async(req, res) => {
 }
 
 const confirmOrder = async (req, res) => {
+  const {payment_time, order_id} = req.body;
+  console.log(payment_time, order_id)
+  if (!order_id ) {
+    return res.status(400).json({ message: "Order ID is required" });
+  }else if (!payment_time ) {
+    return res.status(400).json({ message: "payment_time is required" });
+  }
   try {
     //const { order_id } = req.params; // Or req.body if it's in the request body
-    const {payment_time, order_id} = req.body;
-    if (!order_id ) {
-      return res.status(400).json({ message: "Order ID is required" });
-    }else if (!payment_time ) {
-      return res.status(400).json({ message: "payment_time is required" });
-    }
 
     const trackingNumber = await generateTrackingNumber();
 

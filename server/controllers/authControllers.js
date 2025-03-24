@@ -120,6 +120,7 @@ const login = async (req, res) => {
           role: user.role,
           county: user.county,
           access_token: token,
+          route_id: user.route_id
         });
 
        
