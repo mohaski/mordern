@@ -158,43 +158,34 @@ const walk_inOrderCreation = async (req, res) => {
      // Query routes to find a valid route/direction for the counties
      const [routes] = await db.query(
       `
-      SELECT route_id, direction, sequence_order 
-      FROM routes 
-      WHERE 
-        JSON_CONTAINS(sequence_order, JSON_QUOTE(?)) 
-        AND JSON_CONTAINS(sequence_order, JSON_QUOTE(?))
+     SELECT route_id, route_name, sequence_order
+      FROM routes,
+          JSON_TABLE(sequence_order, '$[*]' COLUMNS (county VARCHAR(255) PATH '$')) AS seq
+      WHERE seq.county IN (?, ?)
+      GROUP BY route_id
+      HAVING COUNT(DISTINCT seq.county) = 2
+      LIMIT 1;
 
       `,
-      [county, receiverjson.county]
+      [senderjson.county, receiverjson.county]
      );
-      console.log(county);
-      console.log(receiverjson.county);
+      console.log(routes);
+
+      let direction;
+
+      const senderIndex = routes[0].sequence_order.indexOf(senderjson.county);
+      const receiverIndex = routes[0].sequence_order.indexOf(receiverjson.county);
+      
+      if (senderIndex < receiverIndex) {
+        direction = 'forward';
+      } else if (senderIndex > receiverIndex) {
+        direction = 'reverse'
+      }
 
       let validRoute = []; // Store the selected route
-
-      // Loop through routes to find the correct one
-      for (const route of routes) {
-        const sequence = route.sequence_order; // Use existing sequence_order
       
-        const senderIndex = sequence.indexOf(county);
-        const receiverIndex = sequence.indexOf(receiverjson.county);
-      
-        if (senderIndex !== -1 && receiverIndex !== -1) {
-          if (senderIndex < receiverIndex && route.direction === 'forward') {
-            validRoute.push(route); // Choose Route 1 for forward trips
-            break;
-          } else if (senderIndex > receiverIndex && route.direction === 'reverse') {
-            validRoute.push(route); // Choose Route 2 for reverse trips
-            break;
-          }
-        }
-      }
-      
-      // Output the selected route
-      console.log(validRoute);
-
-     
-
+      validRoute.push(routes[0]);
+        
    if (validRoute.length === 0) {
       throw new Error('No valid route found for the given counties and direction');
    }
@@ -202,12 +193,10 @@ const walk_inOrderCreation = async (req, res) => {
    // Use the first valid route (or let the user choose)
    const selectedRoute = validRoute[0];
 
-   console.log(selectedRoute);
-
     // Assign route_id and direction to the order
     const order = {
       route_id: selectedRoute.route_id,
-      direction: selectedRoute.direction,
+      direction: direction,
       current_county_office: county,
       senderName: senderjson.name,
       senderEmail: senderjson.email,

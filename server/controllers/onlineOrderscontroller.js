@@ -189,38 +189,35 @@ const orderCreation = async (req, res) => {
      // Query routes to find a valid route/direction for the counties
      const [routes] = await db.query(
       `
-     SELECT route_id, direction, sequence_order 
-     FROM routes, JSON_TABLE(sequence_order, '$[*]' COLUMNS (county VARCHAR(255) PATH '$')) AS seq
-     WHERE seq.county IN (?, ?)
+     SELECT route_id, route_name, sequence_order
+      FROM routes,
+          JSON_TABLE(sequence_order, '$[*]' COLUMNS (county VARCHAR(255) PATH '$')) AS seq
+      WHERE seq.county IN (?, ?)
+      GROUP BY route_id
+      HAVING COUNT(DISTINCT seq.county) = 2
+      LIMIT 1;
+
       `,
       [senderjson.county, receiverjson.county]
      );
       console.log(routes);
 
-      let validRoute = []; // Store the selected route
+      let direction;
 
-      // Loop through routes to find the correct one
-      for (const route of routes) {
-        const sequence = route.sequence_order; // Use existing sequence_order
+      const senderIndex = routes[0].sequence_order.indexOf(senderjson.county);
+      const receiverIndex = routes[0].sequence_order.indexOf(receiverjson.county);
       
-        const senderIndex = sequence.indexOf(senderjson.county);
-        const receiverIndex = sequence.indexOf(receiverjson.county);
-      
-        if (senderIndex !== -1 && receiverIndex !== -1) {
-          if (senderIndex < receiverIndex && route.direction === 'forward') {
-            validRoute.push(route); // Choose Route 1 for forward trips
-            break;
-          } else if (senderIndex > receiverIndex && route.direction === 'reverse') {
-            validRoute.push(route); // Choose Route 2 for reverse trips
-            break;
-          }
-        }
+      if (senderIndex < receiverIndex) {
+        direction = 'forward';
+      } else if (senderIndex > receiverIndex) {
+        direction = 'reverse'
       }
-      
-      // Output the selected route
-      console.log(validRoute);
 
-     
+      let validRoute = []; // Store the selected route
+      
+      validRoute.push(routes[0]);
+        
+      console.log(validRoute)
 
    if (validRoute.length === 0) {
       throw new Error('No valid route found for the given counties and direction');
@@ -232,7 +229,7 @@ const orderCreation = async (req, res) => {
     // Assign route_id and direction to the order
     const order = {
       route_id: selectedRoute.route_id,
-      direction: selectedRoute.direction,
+      direction: direction,
       current_county_office: senderjson.county,
       senderName: senderjson.name,
       senderEmail: senderjson.email,
@@ -252,7 +249,7 @@ const orderCreation = async (req, res) => {
 
     // Insert the order into the database
     const [result] = await db.query("INSERT INTO tempOrders SET ?", [order]);    
-    console.log(result)
+    //console.log(result)
 
 
     if (parcels.length === 0) {
@@ -303,7 +300,7 @@ const getOrderpaymentUpdateStatus = async(req, res) => {
 const confirmOrder = async (req, res) => {
   const {payment_time, order_id} = req.body;
   console.log(payment_time, order_id)
-  if (!order_id ) {
+  if (!order_id) {
     return res.status(400).json({ message: "Order ID is required" });
   }else if (!payment_time ) {
     return res.status(400).json({ message: "payment_time is required" });

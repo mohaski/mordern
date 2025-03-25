@@ -15,7 +15,7 @@ const OrderTracking = () => {
       'Awaiting Confirmation': 1,
       'collected': 2,
       'In Transit': 3,
-      'delivered': 4
+      'Delivered': 4
     };
     const currentStep = steps[currentStatus] || 0;
     const step = steps[stepStatus] || 0;

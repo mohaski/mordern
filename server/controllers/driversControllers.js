@@ -216,8 +216,8 @@ const confirmDropoffPickup = async (req, res) => {
 const confirmDelivery = async (req, res) => {
   const { order_id, payment_mode } = req.body;
   const { user_id } = req.user;
-
-  console.log(payment_mode);
+ 
+  console.log(`${payment_mode} is the mode` );
 
   if(!order_id || !user_id) return res.status(400).json({message: 'order_id and user_id cannot be null'});
 
@@ -526,9 +526,9 @@ const directionChange = async (req, res) => {
   const { user_id } = req.user;
 
   try {
-    // Fetch current direction and route_id
+    // Fetch current direction from users table
     const [rows] = await db.query(
-      `SELECT current_direction, route_id FROM users WHERE user_id = ?`,
+      `SELECT current_direction FROM users WHERE user_id = ?`,
       [user_id]
     );
 
@@ -538,27 +538,24 @@ const directionChange = async (req, res) => {
       return res.status(400).json({ message: 'User data not found!' });
     }
 
+    // Determine the new direction
     let newDirection;
-    let newRouteId;
-
     if (userData.current_direction === 'forward') {
       newDirection = 'reverse';
-      newRouteId = userData.route_id + 1;
     } else if (userData.current_direction === 'reverse') {
       newDirection = 'forward';
-      newRouteId = userData.route_id - 1;
     } else {
       return res.status(400).json({ message: 'Invalid current_direction value!' });
     }
 
-    // Update new direction and new route_id
+    // Update only the direction in the database
     const [result] = await db.query(
-      `UPDATE users SET current_direction = ?, route_id = ? WHERE user_id = ?`,
-      [newDirection, newRouteId, user_id]
+      `UPDATE users SET current_direction = ? WHERE user_id = ?`,
+      [newDirection, user_id]
     );
 
     return res.status(200).json({
-      message: `Direction updated to ${newDirection}, route_id is now ${newRouteId}`,
+      message: `Direction updated to ${newDirection}`,
     });
   } catch (error) {
     console.error(error);
