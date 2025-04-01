@@ -1,52 +1,87 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useTable } from 'react-table';
+import { format, subDays } from 'date-fns';
 import { 
-  BarChart3, TrendingUp, Users, Package, Calendar, Download,
-  ArrowUp, ArrowDown, Truck, DollarSign
-} from 'lucide-react';
-import { useAuth } from '../../contexts/authContext';
-/*import {
-  getOrderStats,
-  getDriverStats,
-  getRevenueStats,
-  getCustomerStats
+  getOrderManagers,
+  getCountyDrivers,
+  getOrdersByOrderManager,
+  getOrdersDeliveredByDriver,
+  getPendingOrders,
 } from '../../services/api';
-*/
-const Reports = () => {
-  const { user } = useAuth();
-  const [dateRange, setDateRange] = useState({
-    start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
-  });
-  const [stats, setStats] = useState({
-    orders: null,
-    drivers: null,
-    revenue: null,
-    customers: null
-  });
-  const [loading, setLoading] = useState(true);
+
+// Utility to get current datetime in 'yyyy-MM-dd HH:mm:ss' format
+const getCurrentDateTime = () => {
+  return format(new Date(Date.now()), 'yyyy-MM-dd HH:mm:ss');
+};
+
+const OfficeManagerReports = () => {
+  const [activeTab, setActiveTab] = useState('ordersByOrderManager');
+  const [ordersByOrderManagerData, setOrdersByOrderManagerData] = useState([]);
+  const [ordersDeliveredByDriverData, setOrdersDeliveredByDriverData] = useState([]);
+  const [pendingOrdersData, setPendingOrdersData] = useState([]);
+  const [orderManagers, setOrderManagers] = useState([]);
+  const [countyDrivers, setCountyDrivers] = useState([]);
+  const [selectedOrderManager, setSelectedOrderManager] = useState('');
+  const [selectedCountyDriver, setSelectedCountyDriver] = useState('');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchStats();
-  }, [dateRange]);
+  // Date Range Filter
+  const [dateRange, setDateRange] = useState({
+    startDate: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
+    endDate: format(new Date(), 'yyyy-MM-dd')
+  });
 
-  const fetchStats = async () => {
-    setLoading(true);
-    setError(null);
+  // Fetch Order Managers for Dropdown (Same County)
+  const fetchOrderManagers = async () => {
     try {
-      const [orders, drivers, revenue, customers] = await Promise.all([
-        getOrderStats(user.county, dateRange),
-        getDriverStats(user.county, dateRange),
-        getRevenueStats(user.county, dateRange),
-        getCustomerStats(user.county, dateRange)
-      ]);
+      const county = JSON.parse(sessionStorage.getItem('user')).county;
+      const response = await getOrderManagers(county);
+      console.log(response);
+      if (response.status === 200) {
+        setOrderManagers(response.data.orderManagers);
+      } else {
+        setError('Failed to fetch order managers');
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
-      setStats({
-        orders: orders.data,
-        drivers: drivers.data,
-        revenue: revenue.data,
-        customers: customers.data
-      });
+  // Fetch County Drivers for Dropdown (Same County)
+  const fetchCountyDrivers = async () => {
+    try {
+      const county = JSON.parse(sessionStorage.getItem('user')).county;
+      const response = await getCountyDrivers(county);
+      if (response.status === 200) {
+        setCountyDrivers(response.data.countyDrivers);
+      } else {
+        setError('Failed to fetch county drivers');
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // Fetch Orders Worked by Order Manager
+  const fetchOrdersByOrderManager = async () => { 
+    setLoading(true);
+    try {
+      const params = {
+        startDate: dateRange.startDate ? `${dateRange.startDate} 00:00:00` : getCurrentDateTime(),
+        endDate: dateRange.endDate ? `${dateRange.endDate} 23:59:59` : getCurrentDateTime(),
+        user_id: selectedOrderManager || undefined,
+      };
+
+      console.log("Fetching orders with params:", params);
+
+      const response = await getOrdersByOrderManager(params.startDate, params.endDate, params.user_id);
+
+      if (response.data.success) {
+        setOrdersByOrderManagerData(response.data.data);
+      } else {
+        setError(response.data.message || 'Failed to fetch orders by order manager');
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -54,198 +89,322 @@ const Reports = () => {
     }
   };
 
-  const StatCard = ({ title, value, icon: Icon, change, subtitle }) => (
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <div className="flex items-center justify-between">
-        <div className="p-2 bg-red-50 rounded-lg">
-          <Icon className="h-6 w-6 text-red-600" />
-        </div>
-        {change !== undefined && (
-          <div className={`flex items-center ${
-            change >= 0 ? 'text-green-600' : 'text-red-600'
-          }`}>
-            {change >= 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-            <span className="ml-1">{Math.abs(change)}%</span>
+  // Fetch Orders Delivered by Driver
+  const fetchOrdersDeliveredByDriver = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        startDate: dateRange.startDate ? `${dateRange.startDate} 00:00:00` : getCurrentDateTime(),
+        endDate: dateRange.endDate ? `${dateRange.endDate} 23:59:59` : getCurrentDateTime(),
+        user_id: selectedCountyDriver || undefined,
+      };
+      const response = await getOrdersDeliveredByDriver(params.startDate, params.endDate, params.user_id);
+      if (response.data.success) {
+        setOrdersDeliveredByDriverData(response.data.data);
+      } else {
+        setError(response.data.message || 'Failed to fetch orders delivered by driver');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch Pending Orders
+  const fetchPendingOrders = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        startDate: dateRange.startDate ? `${dateRange.startDate} 00:00:00` : getCurrentDateTime(),
+        endDate: dateRange.endDate ? `${dateRange.endDate} 23:59:59` : getCurrentDateTime(),
+      };
+      const response = await getPendingOrders(params);
+      if (response.status === 200) {
+        setPendingOrdersData(response.data.orders);
+      } else {
+        setError('Failed to fetch pending orders');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch dropdown data on component mount
+  useEffect(() => {
+    fetchOrderManagers();
+    fetchCountyDrivers();
+  }, []);
+
+  // Reset date range when activeTab changes
+  useEffect(() => {
+    setDateRange({
+      startDate: '',
+      endDate: ''
+    });
+  }, [activeTab]);
+
+  // Fetch report data when tab, date range, or dropdown selection changes
+  useEffect(() => {
+    if (activeTab === 'ordersByOrderManager') fetchOrdersByOrderManager();
+    if (activeTab === 'ordersDeliveredByDriver') fetchOrdersDeliveredByDriver();
+    if (activeTab === 'pendingOrders') fetchPendingOrders();
+  }, [activeTab, dateRange, selectedOrderManager, selectedCountyDriver]);
+
+  // Table Columns for Orders Worked by Order Manager
+  const ordersByOrderManagerColumns = useMemo(
+    () => [
+      { Header: 'Order ID', accessor: 'orderId' },
+      { Header: 'Created At', accessor: 'createdAt', Cell: ({ value }) => new Date(value).toLocaleString() },
+      { Header: 'Total Cost ($)', accessor: 'totalCost' },
+      { Header: 'Pickup Location', accessor: 'pickupLocation' },
+      { Header: 'Delivery Location', accessor: 'deliveryLocation' },
+      {
+        Header: 'Parcel Details',
+        accessor: 'parcelDetails',
+        Cell: ({ value }) => (
+          <div>
+            {value && value.length > 0 ? (
+              value.map((parcel, index) => (
+                <div key={index}>
+                  <p><strong>Content:</strong> {parcel.content}</p>
+                  <p><strong>Weight:</strong> {parcel.weight} kg</p>
+                  <p><strong>Pieces:</strong> {parcel.number_of_pieces}</p>
+                  {index < value.length - 1 && <hr />}
+                </div>
+              ))
+            ) : (
+              'N/A'
+            )}
           </div>
-        )}
-      </div>
-      <div className="mt-4">
-        <h3 className="text-lg font-semibold text-gray-900">{value}</h3>
-        <p className="text-sm text-gray-500">{title}</p>
-        {subtitle && (
-          <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
-        )}
-      </div>
-    </div>
+        ),
+      },
+    ],
+    []
   );
+
+  // Table Columns for Orders Delivered by Driver
+  const ordersDeliveredByDriverColumns = useMemo(
+    () => [
+      { Header: 'Order ID', accessor: 'orderId' },
+      { Header: 'Dropped at Office', accessor: 'droppedAt', Cell: ({ value }) => new Date(value).toLocaleString() },
+      { Header: 'Estimated Delivery Time', accessor: 'estimated_delivery', Cell: ({ value }) => value !== 'N/A' ? new Date(value).toLocaleString() : 'N/A' },
+      { Header: 'Delivered At', accessor: 'deliveredAt', Cell: ({ value }) => new Date(value).toLocaleString() },
+    ],
+    []
+  );
+
+  // Table Columns for Pending Orders
+  const pendingOrdersColumns = useMemo(
+    () => [
+      { Header: 'Order ID', accessor: 'order_id' },
+      { Header: 'Created At', accessor: 'created_at', Cell: ({ value }) => new Date(value).toLocaleString() },
+    ],
+    []
+  );
+
+  const ordersByOrderManagerTable = useTable({ columns: ordersByOrderManagerColumns, data: ordersByOrderManagerData });
+  const ordersDeliveredByDriverTable = useTable({ columns: ordersDeliveredByDriverColumns, data: ordersDeliveredByDriverData });
+  const pendingOrdersTable = useTable({ columns: pendingOrdersColumns, data: pendingOrdersData });
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Operations Report</h1>
-          <p className="text-gray-600">Overview of county operations and performance</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <input
-              type="date"
-              value={dateRange.start}
-              onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-              className="px-3 py-2 border border-gray-300 rounded-md"
-            />
-            <span>to</span>
-            <input
-              type="date"
-              value={dateRange.end}
-              onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-              className="px-3 py-2 border border-gray-300 rounded-md"
-            />
-          </div>
-          <button className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
-            <Download className="h-5 w-5 mr-2" />
-            Export Report
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Office Manager Reports</h1>
+
+      {/* Tabs */}
+      <div className="flex space-x-4 mb-6 border-b">
+        {[
+          { id: 'ordersByOrderManager', label: 'Orders by Order Manager' },
+          { id: 'ordersDeliveredByDriver', label: 'Orders Delivered by Driver' },
+          { id: 'pendingOrders', label: 'Pending Orders' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 font-medium ${activeTab === tab.id ? 'border-b-2 border-red-600 text-red-600' : 'text-gray-600'}`}
+          >
+            {tab.label}
           </button>
-        </div>
+        ))}
       </div>
 
+      {/* Error Message */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
+        <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
           {error}
         </div>
       )}
 
+      {/* Filters */}
+      <div className="mb-6 flex space-x-4">
+        {/* Date Range Filter */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Start Date</label>
+          <input
+            type="date"
+            value={dateRange.startDate}
+            onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
+            className="mt-1 block w-48 rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">End Date</label>
+          <input
+            type="date"
+            value={dateRange.endDate}
+            onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
+            className="mt-1 block w-48 rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
+          />
+        </div>
+
+        {/* Order Manager Dropdown */}
+        {activeTab === 'ordersByOrderManager' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Order Manager (Same County)</label>
+            <select
+              value={selectedOrderManager}
+              onChange={(e) => setSelectedOrderManager(e.target.value)}
+              className="mt-1 block w-48 rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
+            >
+              <option value="">Choose Order Managers</option>
+              {orderManagers.map(manager => (
+                <option key={manager.user_id} value={manager.user_id}>
+                  {manager.email}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* County Driver Dropdown */}
+        {activeTab === 'ordersDeliveredByDriver' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700">County Driver (Same County)</label>
+            <select
+              value={selectedCountyDriver}
+              onChange={(e) => setSelectedCountyDriver(e.target.value)}
+              className="mt-1 block w-48 rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
+            >
+              <option value="">Choose County Drivers</option>
+              {countyDrivers.map(driver => (
+                <option key={driver.user_id} value={driver.user_id}>
+                  {driver.email}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Report Content */}
       {loading ? (
-        <div className="text-center py-12">Loading statistics...</div>
+        <div className="text-center py-12">Loading...</div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <StatCard
-              title="Total Orders"
-              value={stats.orders?.total || 0}
-              icon={Package}
-              change={stats.orders?.change}
-              subtitle="Past 30 days"
-            />
-            <StatCard
-              title="Active Drivers"
-              value={stats.drivers?.active || 0}
-              icon={Truck}
-              subtitle={`${stats.drivers?.deliveries || 0} deliveries today`}
-            />
-            <StatCard
-              title="Revenue"
-              value={`KES ${stats.revenue?.total || 0}`}
-              icon={DollarSign}
-              change={stats.revenue?.change}
-              subtitle="Monthly revenue"
-            />
-            <StatCard
-              title="New Customers"
-              value={stats.customers?.new || 0}
-              icon={Users}
-              change={stats.customers?.change}
-              subtitle="This month"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Order Status Distribution */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-semibold mb-4">Order Status Distribution</h3>
-              <div className="space-y-4">
-                {stats.orders?.statusDistribution?.map(status => (
-                  <div key={status.name}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600">{status.name}</span>
-                      <span className="font-medium">{status.count}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-red-600 h-2 rounded-full"
-                        style={{ width: `${status.percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Driver Performance */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-semibold mb-4">Top Performing Drivers</h3>
-              <div className="space-y-4">
-                {stats.drivers?.topPerformers?.map(driver => (
-                  <div key={driver.id} className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                        <Truck className="h-4 w-4 text-red-600" />
-                      </div>
-                      <div className="ml-3">
-                        <p className="font-medium text-gray-900">{driver.name}</p>
-                        <p className="text-sm text-gray-500">{driver.deliveries} deliveries</p>
-                      </div>
-                    </div>
-                    <div className="text-sm font-medium text-gray-900">
-                      {driver.rating}%
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Revenue Trends */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-semibold mb-4">Revenue Trends</h3>
-              <div className="space-y-4">
-                {stats.revenue?.trends?.map(trend => (
-                  <div key={trend.date} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">{trend.date}</p>
-                      <p className="text-sm text-gray-500">{trend.orders} orders</p>
-                    </div>
-                    <div className="text-sm font-medium text-gray-900">
-                      KES {trend.amount}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Customer Insights */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-semibold mb-4">Customer Insights</h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-500">Repeat Customers</p>
-                    <p className="text-xl font-semibold text-gray-900">
-                      {stats.customers?.repeat || 0}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-500">Avg. Order Value</p>
-                    <p className="text-xl font-semibold text-gray-900">
-                      KES {stats.customers?.avgOrderValue || 0}
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Popular Destinations</h4>
-                  {stats.customers?.popularDestinations?.map(dest => (
-                    <div key={dest.location} className="flex justify-between text-sm py-2">
-                      <span className="text-gray-600">{dest.location}</span>
-                      <span className="font-medium">{dest.count} orders</span>
-                    </div>
+        <div className="bg-white shadow-sm rounded-lg p-6">
+          {activeTab === 'ordersByOrderManager' && (
+            <div>
+              <h2 className="text-xl font-medium mb-4">Orders Worked by Order Manager</h2>
+              <table {...ordersByOrderManagerTable.getTableProps()} className="w-full border-collapse">
+                <thead>
+                  {ordersByOrderManagerTable.headerGroups.map(headerGroup => (
+                    <tr {...headerGroup.getHeaderGroupProps()} className="bg-gray-100">
+                      {headerGroup.headers.map(column => (
+                        <th {...column.getHeaderProps()} className="border p-2 text-left">
+                          {column.render('Header')}
+                        </th>
+                      ))}
+                    </tr>
                   ))}
-                </div>
-              </div>
+                </thead>
+                <tbody {...ordersByOrderManagerTable.getTableBodyProps()}>
+                  {ordersByOrderManagerTable.rows.map(row => {
+                    ordersByOrderManagerTable.prepareRow(row);
+                    return (
+                      <tr {...row.getRowProps()}>
+                        {row.cells.map(cell => (
+                          <td {...cell.getCellProps()} className="border p-2">
+                            {cell.render('Cell')}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </div>
-        </>
+          )}
+
+          {activeTab === 'ordersDeliveredByDriver' && (
+            <div>
+              <h2 className="text-xl font-medium mb-4">Orders Delivered by Driver</h2>
+              <table {...ordersDeliveredByDriverTable.getTableProps()} className="w-full border-collapse">
+                <thead>
+                  {ordersDeliveredByDriverTable.headerGroups.map(headerGroup => (
+                    <tr {...headerGroup.getHeaderGroupProps()} className="bg-gray-100">
+                      {headerGroup.headers.map(column => (
+                        <th {...column.getHeaderProps()} className="border p-2 text-left">
+                          {column.render('Header')}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody {...ordersDeliveredByDriverTable.getTableBodyProps()}>
+                  {ordersDeliveredByDriverTable.rows.map(row => {
+                    ordersDeliveredByDriverTable.prepareRow(row);
+                    return (
+                      <tr {...row.getRowProps()}>
+                        {row.cells.map(cell => (
+                          <td {...cell.getCellProps()} className="border p-2">
+                            {cell.render('Cell')}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {activeTab === 'pendingOrders' && (
+            <div>
+              <h2 className="text-xl font-medium mb-4">Pending Orders</h2>
+              <table {...pendingOrdersTable.getTableProps()} className="w-full border-collapse">
+                <thead>
+                  {pendingOrdersTable.headerGroups.map(headerGroup => (
+                    <tr {...headerGroup.getHeaderGroupProps()} className="bg-gray-100">
+                      {headerGroup.headers.map(column => (
+                        <th {...column.getHeaderProps()} className="border p-2 text-left">
+                          {column.render('Header')}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody {...pendingOrdersTable.getTableBodyProps()}>
+                  {pendingOrdersTable.rows.map(row => {
+                    pendingOrdersTable.prepareRow(row);
+                    return (
+                      <tr {...row.getRowProps()}>
+                        {row.cells.map(cell => (
+                          <td {...cell.getCellProps()} className="border p-2">
+                            {cell.render('Cell')}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
 };
 
-export default Reports;
+export default OfficeManagerReports;

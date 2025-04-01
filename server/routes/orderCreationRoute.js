@@ -14,7 +14,8 @@ const {
   walk_inReceiverDetails,
   walk_inparcelDetails,
   walk_inOrderCreation,
-  orderManagerConfirmOrder
+  orderManagerConfirmOrder,
+  getorderManagerOrders
 } = require('../controllers/walk-inOrdersController');
 
 const {
@@ -45,18 +46,17 @@ router.get("/get-session", (req, res) => {
 router.post('/walk-in/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation/confirmOrder', confirmOrder);
 
 
-router.use(authenticate);
 router.post("/walk-in/senderDetails", walk_inSenderDetails);
 router.post("/walk-in/sendersDetails/receiverDetails", walk_inReceiverDetails);
 router.post("/walk-in/sendersDetails/receiverDetails/parcelDetails", walk_inparcelDetails)
-router.post("/walk-in/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation", walk_inOrderCreation);
+router.post("/walk-in/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation", authenticate, walk_inOrderCreation);
 router.post("/walk-in/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation/orderManagerconfirmOrder", orderManagerConfirmOrder);
 
-
+router.get("/cashier/orders/:county", getorderManagerOrders);
 router.get("/cashier/pendingPayments/:county", getPendingPayments);
 router.get("/cashier/pendingPayments/payment/:order_id", getPayment);
 
 //router.post("/cashier/pendingPayments/:pendingPayment", getPendingPayment);
-router.post("/cashier/updatepayment/:order_id/updateOrderCost", processPayment);
+router.post("/cashier/updatepayment/:order_id/updateOrderCost", authenticate, processPayment);
 
 module.exports = router;

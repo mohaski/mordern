@@ -8,6 +8,7 @@ const authRoutes = require("./routes/authroutes");
 const orderCreationRoutes = require("./routes/orderCreationRoute");
 const trackRoutes = require("./routes/trackRoutes");
 const driverOperationsRoutes = require('./routes/driverOperations');
+const reportRoutes = require('./routes/reportsRoutes');
 const port = process.env.PORT;
 
 const app = express();
@@ -26,7 +27,7 @@ app.use(
 app.use(cors({
   origin: 'http://localhost:5173', // Exact frontend origin
   credentials: true,
-  methods: ['GET', 'POST', 'PUT'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
   //allowedHeaders: ['Content-Type', 'Authorization']
 }));
 // Handle preflight requests
@@ -38,6 +39,7 @@ app.use("/", authRoutes);
 app.use("/", orderCreationRoutes);
 app.use("/", trackRoutes);
 app.use("/", driverOperationsRoutes);
+app.use('/', reportRoutes);
 
 
 connectDB();

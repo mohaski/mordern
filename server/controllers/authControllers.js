@@ -1,3 +1,7 @@
+const mysql = require("mysql2/promise");
+const config = require("../config/config");
+const db = mysql.createPool(config);
+
 const { v4: uuidv4 } = require("uuid");
 const jwt = require("jsonwebtoken");
 const userSchema = require("../models/usersModel");
@@ -21,55 +25,84 @@ const generateAccessToken = (user) => {
   );
 };
 
-const register = async (req, res) => {
-  const { email, role, county, } = req.body;
-  if (!email || !role ) {
-    res.status(400).json({
-      error: "Email, role or county fields cannot be empty!",
-    });
-    return;
-  }
+//const userAlreadyExists = await checkRecordExists("users", "email", email);
+//await insertRecord("users", user);
 
-  if (role === 'driver'){
-    var driver_type = 'county'
-  }
 
- /* const officeManager = req.user;
-  if (officeManager.role !== "office manager" || officeManager.county !== county) {
-    return res
-      .status(400)
-      .json({ message: "Unauthorized to register employees for this county" });
-  }*/
 
-  const salt = await bcrypt.genSalt(10);
-  const generatedPassword = passwordGenerator.generate({
-    length: 8,
-    numbers: true,
-  });
-  console.log(generatedPassword);
-
-  //const  generatedPassword = "Welcome";
-  const hashedPassword = await bcrypt.hash(generatedPassword, salt);
-  const user = {
-    email,
-    password: hashedPassword,
-    role,
-    county,
-    driver_type,
-    is_first_login: false,
-  };
+const createStaff = async (req, res) => {
   try {
-    await createTable(userSchema);
+    const { name, email, role, route_id } = req.body;
+    console.log(name, email, role)
+    const {county} = req.user;
+
+    // Validate required fields
+    if (!email || !role || !county) {
+      return res.status(400).json({
+        error: 'Email, role, and county fields cannot be empty!',
+      });
+    }
+
+    // Set driver_type based on role
+    let driver_type = null;
+    if (role === 'driver') {
+      driver_type = 'county';
+    } else if (role === 'transit_driver') {
+      driver_type = 'transit';
+    }
+
+    // Generate a random password
+    const generatedPassword = passwordGenerator.generate({
+      length: 8,
+      numbers: true,
+    });
+    console.log('Generated Password:', generatedPassword);
+
+    // Hash the password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(generatedPassword, salt);
+
+    // Create the staff object
+    const staffData = {
+      name,
+      email,
+      role,
+      county,
+      route_id: role === 'transit_driver' ? route_id : null,
+      password: hashedPassword,
+      driver_type,
+      is_first_login: false,
+    };
+
+    // Check if email already exists
     const userAlreadyExists = await checkRecordExists("users", "email", email);
     if (userAlreadyExists) {
-      res.status(409).json({ error: "Email already exists" });
-    } else {
-      await insertRecord("users", user);
-      res.status(201).json({ message: "User created successfully!" });
+      return res.status(409).json({ error: 'Email already exists' });
     }
+
+
+    // Save the new staff member
+   const staff = await insertRecord("users", staffData);
+    console.log(`${email}: ${generatedPassword}`)
+    console.log(staff)
+
+    return res.status(201).json({
+      success: true,
+      message: 'User created successfully!',
+      data: {
+        user_id: staff._id,
+        name: staff.name,
+        email: staff.email,
+        role: staff.role,
+        county: staff.county,
+        route_id: staff.route_id,
+        driver_type: staff.driver_type,
+        is_first_login: staff.is_first_login,
+      },
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message || 'Server error' });
   }
 };
 
@@ -227,9 +260,60 @@ const logOut = async (req, res) => {
 
 }
 
+const getStaffList = async(req, res) => {
+  const {county} = req.params;
+  console.log(`${county} it is`)
+  if(!county) return res.status(400).json({message: 'county must be provided'});
+
+  try{
+    const [users] = await db.query(`SELECT * FROM users WHERE county = ? `, [county]);
+    console.log(users)
+    if(users.length === 0) return res.status(200).json({message: 'There are no employees in this county office other than you'} );
+
+    return res.status(200).json({
+      message: 'users list retrieved',
+      users: users
+    })
+  }catch(error){
+    return res.status(500).json({error: error.message})
+  }
+
+  
+
+}
+
+// Delete a staff member
+const deleteStaff = async (req, res) => {
+  const { id } = req.params;
+  if(!id) return res.status(400).json({message: 'id must be provided'});
+  console.log(id)
+
+  try {
+    
+    // Find the staff member
+    const staff = await checkRecordExists("users", "user_id", id);
+   // console.log(staff.county);
+
+    if (!staff) {
+          return res.status(404).json({ message: 'Staff member not found' });
+        }
+
+    await db.query(`DELETE FROM users WHERE user_id = ?;`, [id]);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Staff member deleted successfully',
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || 'Server error' });
+  }
+};
+
 module.exports = {
-  register,
+  createStaff,
   login,
   changePassword,
-  logOut
+  logOut,
+  getStaffList,
+  deleteStaff
 };

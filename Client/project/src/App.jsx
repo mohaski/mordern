@@ -65,7 +65,7 @@ function App() {
         } />
 
           {/* Protected Office Manager Routes */}
-          <Route path="/office" element={
+          <Route path="/office/*" element={
             <ProtectedRoute allowedRoles={['office_manager']}>
               <Layout>
                 <Routes>

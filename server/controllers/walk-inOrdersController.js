@@ -2,6 +2,7 @@ const mysql = require("mysql2/promise");
 const config = require("../config/config");
 const db = mysql.createPool(config);
 const validateSender_ReceiverFields = require("../utils/validateSender_ReceiverFields");
+const uuid = require('uuid')
 
 function add48HoursToNow() {
   const now = new Date(); // Current date and time
@@ -16,6 +17,11 @@ function add48HoursToNow() {
   const seconds = String(newDate.getSeconds()).padStart(2, '0');
 
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+
+const generateTrackingNumber = async () => {
+    return uuid.v4(); // Generates a unique ID like '550e8400-e29b-41d4-a716-446655440000'
 }
 
 // Example usage
@@ -142,12 +148,13 @@ const walk_inparcelDetails = async (req, res) => {
 
 const walk_inOrderCreation = async (req, res) => {
   const {county, sender, receiver, parcels, total_cost} = req.body;
+  //const {county} = req.user;
   const senderjson = JSON.parse(sender);
   const receiverjson = JSON.parse(receiver);
+
+  console.log(senderjson)
  
-  console.log(total_cost);
-  console.log(sender);
-  console.log(receiver);
+ 
 
   // Validate sender and receiver data
   if (!sender || !receiver || total_cost < 0 ) {
@@ -167,13 +174,12 @@ const walk_inOrderCreation = async (req, res) => {
       LIMIT 1;
 
       `,
-      [senderjson.county, receiverjson.county]
+      [county, receiverjson.county]
      );
-      console.log(routes);
 
       let direction;
 
-      const senderIndex = routes[0].sequence_order.indexOf(senderjson.county);
+      const senderIndex = routes[0].sequence_order.indexOf(county);
       const receiverIndex = routes[0].sequence_order.indexOf(receiverjson.county);
       
       if (senderIndex < receiverIndex) {
@@ -186,6 +192,7 @@ const walk_inOrderCreation = async (req, res) => {
       
       validRoute.push(routes[0]);
         
+
    if (validRoute.length === 0) {
       throw new Error('No valid route found for the given counties and direction');
    }
@@ -202,6 +209,7 @@ const walk_inOrderCreation = async (req, res) => {
       senderEmail: senderjson.email,
       senderPhone_number: senderjson.phone_number,
       pickupCounty: county,
+      pickupstreet_name: `${county} office`,
       pickupbuilding_name:`${county} office`,
       receiverName: receiverjson.name,
       receiverEmail: receiverjson.email,
@@ -255,14 +263,34 @@ const orderManagerConfirmOrder = async (req, res) => {
   }
 
   try{
+
+    const trackingNumber = await generateTrackingNumber();
+
     await db.query(`
       UPDATE temporders
-      SET payment_mode = ?, status= ?
+      SET payment_mode = ?, status= ?, tracking_number = ?, payment_time = ?
       WHERE order_id = ?;
       `,
-    [payment_mode, 'Waiting Transit', order_id]);
+    [payment_mode, 'Waiting Transit', trackingNumber, 'on-pickup', order_id]);
 
     return res.status(200).json({message: 'The order is confirmed'})
+  }catch(error){
+    return res.status(500).json({error: error.message});
+  }
+}
+
+const getorderManagerOrders = async(req, res) => {
+  const {county} = req.params;
+  console.log(county)
+  if(!county ) return res.status(400).json({message: 'user_id must be provided'});
+
+  try{
+    const [orders] = await db.query(`SELECT * FROM temporders WHERE pickupcounty = ? ;`, [county]);
+    
+    return res.status(200).json({
+      message: `all orders for ${county} office are retrieved`,
+      orders
+    })
   }catch(error){
     return res.status(500).json({error: error.message});
   }
@@ -274,5 +302,6 @@ walk_inSenderDetails,
 walk_inReceiverDetails,
 walk_inparcelDetails,
 walk_inOrderCreation,
-orderManagerConfirmOrder
+orderManagerConfirmOrder,
+getorderManagerOrders
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Package, MapPin, ArrowLeft, Truck, Calculator } from 'lucide-react';
-import { getPayment , processPayment} from '../../services/api';
+import { getPayment, processPayment } from '../../services/api';
 
 const OrderDetails = () => {
   const { order_id } = useParams();
@@ -10,12 +10,12 @@ const OrderDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [cost, setCost] = useState('');
-  const [parcelCosts, setParcelCosts] = useState({}); // State for parcel costs
+  const [parcelCosts, setParcelCosts] = useState({});
 
   useEffect(() => {
     const fetchOrderDetails = async () => {
       try {
-        console.log(order_id)
+        console.log(order_id);
         const response = await getPayment(order_id);
         setOrder(response.data.order);
         console.log(response.data.order);
@@ -29,16 +29,14 @@ const OrderDetails = () => {
     fetchOrderDetails();
   }, [order_id]);
 
-   // Function to handle parcel cost input change
-   const handleParcelCostChange = (index, value) => {
+  const handleParcelCostChange = (index, value) => {
     setParcelCosts((prevCosts) => ({
       ...prevCosts,
       [index]: value,
     }));
   };
 
-   // Function to calculate total cost
-   const calculateTotalCost = () => {
+  const calculateTotalCost = () => {
     return Object.values(parcelCosts).reduce((acc, cost) => acc + (parseFloat(cost) || 0), 0);
   };
 
@@ -52,16 +50,18 @@ const OrderDetails = () => {
     }
 
     try {
-      const processPaymentDetails ={
+      const processPaymentDetails = {
         order_id: order[0].order_id,
         amounts: Object.values(parcelCosts).map((cost) => parseFloat(cost)),
-        total_cost: totalCost
-        
+        total_cost: totalCost,
       };
 
-      processPayment(processPaymentDetails.order_id, processPaymentDetails.amounts, processPaymentDetails.total_cost)
+      console.log(processPaymentDetails);
 
-      navigate('/cashier/cost-update');
+      await processPayment(processPaymentDetails.order_id, processPaymentDetails.amounts, processPaymentDetails.total_cost);
+
+      // Redirect with a query parameter to trigger a fetch
+      navigate('/cashier/cost-update?refresh=true');
     } catch (err) {
       setError(err.message || 'Failed to update cost');
     }
@@ -87,7 +87,6 @@ const OrderDetails = () => {
         </div>
       </div>
 
-      {/* Customer Information Container */}
       <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
         <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
           <div className="flex justify-between items-center">
@@ -107,7 +106,6 @@ const OrderDetails = () => {
 
         <div className="px-4 py-5 sm:p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Sender Details */}
             <div className="bg-gray-50 p-4 rounded-lg">
               <h4 className="text-base font-medium text-gray-900 mb-4">Sender Details</h4>
               <div className="space-y-3">
@@ -133,7 +131,6 @@ const OrderDetails = () => {
               </div>
             </div>
 
-            {/* Receiver Details */}
             <div className="bg-gray-50 p-4 rounded-lg">
               <h4 className="text-base font-medium text-gray-900 mb-4">Receiver Details</h4>
               <div className="space-y-3">
@@ -162,7 +159,6 @@ const OrderDetails = () => {
         </div>
       </div>
 
-      {/* Parcels and Cost Container */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
           <h4 className="text-lg font-medium text-gray-900">Parcel Details & Costs</h4>
@@ -185,7 +181,7 @@ const OrderDetails = () => {
                           <span>Pieces: {parcel.number_of_pieces}</span>
                         </div>
                       </div>
-                  </div>
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Parcel Cost
@@ -196,7 +192,7 @@ const OrderDetails = () => {
                         </div>
                         <input
                           type="number"
-                          value={parcelCosts[index] }
+                          value={parcelCosts[index]}
                           onChange={(e) => handleParcelCostChange(index, e.target.value)}
                           className="block w-full pl-14 pr-4 sm:text-sm border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500"
                           placeholder="0.00"

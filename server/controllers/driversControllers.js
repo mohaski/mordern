@@ -84,7 +84,7 @@ const getOrderParcelDetails = async (req, res) => {
       
 
 const confirmPickup = async (req, res) => {
-  const { order_id } = req.body;
+  const { order_id, payment_mode } = req.body;
   const { user_id } = req.user; 
 
   if(!order_id || !user_id){
@@ -93,8 +93,8 @@ const confirmPickup = async (req, res) => {
 
   try {
     await db.query(
-      'UPDATE temporders SET status = ?, assigned_county_driver_id = ?, pickup_time = ? WHERE order_id = ?',
-      ["Collected", user_id, new Date(), order_id]
+      'UPDATE temporders SET status = ?, assigned_county_driver_id = ?, pickup_time = ?, payment_mode = ? WHERE order_id = ?',
+      ["Collected", user_id, new Date(), payment_mode, order_id]
     );
 
     return res.status(200).json({
@@ -223,7 +223,7 @@ const confirmDelivery = async (req, res) => {
 
   try {
     await db.query(
-      'UPDATE temporders SET status = ?, assigned_county_driver_id = ?, payment_mode = ?, delivery_time = ? WHERE order_id = ?',
+      'UPDATE temporders SET status = ?, assignedDelivery_countyDriver = ?, payment_mode = ?, delivery_time = ? WHERE order_id = ?',
       [ "Delivered", user_id, payment_mode, new Date(), order_id ]
     );
 
@@ -469,6 +469,11 @@ const confirmDropoff = async (req, res) => {
         current_county_office = CASE 
           ${orderIds
             .map((id) => `WHEN ${id} THEN '${checkins[0].county}'`)
+            .join(" ")} 
+        END,
+        transitDroppingTime = CASE 
+          ${orderIds
+            .map((id) => `WHEN ${id} THEN '${new Date().toISOString().slice(0, 19).replace('T', ' ')}'`)
             .join(" ")} 
         END
       WHERE order_id IN (${orderIds.map((id) => id).join(",")}) 

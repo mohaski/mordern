@@ -24,7 +24,6 @@ const getPayment = async (req, res) => {
        [order_id]
      );
 
-      console.log(order_parcels)
 
     res.status(200).json({
       message: 'order details displayed successfully',
@@ -38,7 +37,6 @@ const getPayment = async (req, res) => {
 const getPendingPayments = async (req, res) => {
   try {
     const { county } = req.params;
-    console.log(`${county}001`);
 
     const [orders] = await db.query(
       `SELECT * FROM temporders WHERE status = "Pending Cost Calculation" AND pickupcounty = ?`,
@@ -54,7 +52,13 @@ const getPendingPayments = async (req, res) => {
 
 const processPayment = async (req, res) => {
   const { order_id, amounts, total_cost} = req.body;
+  const {user_id} = req.user;
   console.log(amounts)
+  console.log(order_id)
+  console.log(total_cost)
+  console.log(user_id)
+  if(!order_id || !amounts || !total_cost || !user_id) return res.status(400).json({message: 'either order_id, amounts, total_cost or user_id is not provided'});
+  
 
 
   if(!Array.isArray(amounts) || amounts.length === 0){
@@ -92,7 +96,7 @@ const processPayment = async (req, res) => {
 
     // Calculate total cost and update the temporders table
     //const total_cost = amounts.reduce((acc, curr) => acc + curr, 0);
-    await conn.query("UPDATE temporders SET total_cost = ?, status = ? WHERE order_id = ?", [total_cost, 'Awaiting Confirmation', order_id]);
+    await conn.query("UPDATE temporders SET total_cost = ?, status = ?, served_by = ? WHERE order_id = ?", [total_cost, 'Awaiting Confirmation', user_id,order_id, ]);
 
     await conn.commit();
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Package, Truck, CheckCircle, MapPin, ArrowRight, Box, ChevronLeft, AlertCircle, LogOut } from 'lucide-react';
 import { useAuth } from '../../../contexts/authContext';
-import { getParcelDetails, getDriverRoute, getOrdersToBedroppedOff, getAvailableTransfers, checkIn, directionChange, confirmPickupforTransfer,confirmDropoff } from '../../../services/api';
+import { getParcelDetails, getDriverRoute, getOrdersToBedroppedOff, getAvailableTransfers, checkIn, directionChange, confirmPickupforTransfer, confirmDropoff } from '../../../services/api';
 
 const TransitDriverDashboard = () => {
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'dropoff');
@@ -29,6 +29,10 @@ const TransitDriverDashboard = () => {
   const [routeStations, setRouteStations] = useState([]);
   const [reverseStations, setReverseStations] = useState([]);
   const [parcels, setParcels] = useState([]);
+  const [pickedUpOrders, setPickedUpOrders] = useState(() => {
+    const savedPickedUp = localStorage.getItem('pickedUpOrders');
+    return savedPickedUp ? JSON.parse(savedPickedUp) : [];
+  });
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
@@ -48,6 +52,10 @@ const TransitDriverDashboard = () => {
   useEffect(() => {
     localStorage.setItem('selectedOrders', JSON.stringify(orders.selected));
   }, [orders.selected]);
+
+  useEffect(() => {
+    localStorage.setItem('pickedUpOrders', JSON.stringify(pickedUpOrders));
+  }, [pickedUpOrders]);
 
   useEffect(() => {
     localStorage.setItem('checkedInStatus', checkedInStatus.toString());
@@ -140,6 +148,7 @@ const TransitDriverDashboard = () => {
         selected: []
       });
       setCheckedDropoffOrders([]);
+      setPickedUpOrders([]); // Clear picked-up orders on checkout
     } catch (err) {
       setError(err.message);
       setIsCheckingOut(false);
@@ -152,23 +161,30 @@ const TransitDriverDashboard = () => {
       const dropoffResponse = await getOrdersToBedroppedOff();
       console.log(dropoffResponse);
       console.log(dropoffResponse.data.dropOffs);
-      setOrders(prev => ({
-        ...prev,
-        available: Array.isArray(availableResponse.data.transfers)
-          ? availableResponse.data.transfers
-          : [],
-        dropoff: Array.isArray(dropoffResponse.data.dropOffs)
-          ? dropoffResponse.data.dropOffs
-          : [],
-        selected: prev.selected
-      }));
+      setOrders(prev => {
+        const filteredAvailable = Array.isArray(availableResponse.data.transfers)
+          ? availableResponse.data.transfers.filter(
+              order =>
+                !prev.selected.some(selectedOrder => selectedOrder.order_id === order.order_id) &&
+                !pickedUpOrders.includes(order.order_id)
+            )
+          : [];
+        return {
+          ...prev,
+          available: filteredAvailable,
+          dropoff: Array.isArray(dropoffResponse.data.dropOffs)
+            ? dropoffResponse.data.dropOffs
+            : [],
+          selected: prev.selected
+        };
+      });
     } catch (err) {
       setError(err.message);
       setOrders(prev => ({
         ...prev,
         available: [],
         dropoff: [],
-        selected: []
+        selected: prev.selected // Preserve selected orders
       }));
     } finally {
       setLoading(false);
@@ -181,13 +197,15 @@ const TransitDriverDashboard = () => {
       if (orderToSelect && !orders.selected.some(o => o.order_id === orderId)) {
         setOrders(prev => ({
           ...prev,
+          available: prev.available.filter(order => order.order_id !== orderId),
           selected: [...prev.selected, {
             order_id: orderToSelect.order_id,
             created_at: orderToSelect.created_at,
             deliverCounty: orderToSelect.deliverCounty,
             status: orderToSelect.status,
             pickupcounty: orderToSelect.pickupcounty,
-            parcels_count: orderToSelect.parcels_count
+            parcels_count: orderToSelect.parcels_count,
+            
           }]
         }));
       }
@@ -202,9 +220,9 @@ const TransitDriverDashboard = () => {
       if (orders.selected.length > 0) {
         const response = await confirmPickupforTransfer(orders.selected);
         if (response.status === 200) {
+          setPickedUpOrders(prev => [...prev, ...orders.selected.map(order => order.order_id)]);
           setOrders(prev => ({
             ...prev,
-            available: prev.available.filter(order => !orders.selected.some(s => s.order_id === order.order_id)),
             selected: []
           }));
           setActiveTab('dropoff');
@@ -230,15 +248,14 @@ const TransitDriverDashboard = () => {
       if (checkedDropoffOrders.length > 0) {
         await confirmDropoff(checkedDropoffOrders);
         setOrders(prev => ({
-            ...prev,
-            dropoff: prev.dropoff.filter(order => !checkedDropoffOrders.includes(order.order_id))
-          }));
-          setCheckedDropoffOrders([]);
-          setError(null);
-        } else {
-          setError(result.message || 'Failed to confirm dropoff.');
-        }
-      
+          ...prev,
+          dropoff: prev.dropoff.filter(order => !checkedDropoffOrders.includes(order.order_id))
+        }));
+        setCheckedDropoffOrders([]);
+        setError(null);
+      } else {
+        setError('No orders selected for dropoff.');
+      }
     } catch (err) {
       setError('Failed to confirm dropoff: ' + err.message);
     }
@@ -263,6 +280,7 @@ const TransitDriverDashboard = () => {
       deliverCounty: order.deliverCounty,
       status: order.status,
       pickupcounty: order.pickupcounty,
+      estimated_delivery: order.estimated_delivery,
       parcels_count: order.parcels_count
     };
     setSelectedOrder(serializableOrder);
@@ -276,7 +294,7 @@ const TransitDriverDashboard = () => {
           type="checkbox"
           checked={checkedDropoffOrders.includes(order.order_id)}
           onChange={(e) => {
-            e.stopPropagation(); // Prevent propagation to card
+            e.stopPropagation();
             handleToggleDropoffCheckbox(order.order_id);
           }}
           className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500"
@@ -290,7 +308,7 @@ const TransitDriverDashboard = () => {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
             <Package className="h-6 w-6 text-red-600 mr-3" />
-            <span className="font-semibold text-lg text-gray-800">#{order.order_id}</span>
+            <span className="font-semibold text-lg text-gray-800">#orderId {order.order_id}</span>
           </div>
         </div>
         <div className="space-y-3">
@@ -303,13 +321,19 @@ const TransitDriverDashboard = () => {
               <p className="text-sm font-medium text-gray-700">
                 To: <span className="text-gray-900">{order.deliverCounty}</span>
               </p>
+              <p className="text-sm font-medium text-gray-700">
+                Estmated Delivery Time: <span className="text-gray-900">{new Date(order.estimated_delivery).toLocaleString()}</span>
+              </p>
             </div>
           </div>
           <div className="flex justify-between items-center mt-3">
             <span className="text-sm text-gray-600">
               {order.parcels_count} {order.parcels_count === 1 ? 'parcel' : 'parcels'}
             </span>
-            <ArrowRight className="h-5 w-5 text-red-500 hover:text-red-700 transition-colors" />
+            <div className="flex items-center justify-end mt-4 space-x-2">
+              <span className="text-sm text-gray-700 font-medium">SELECT</span>
+              <ArrowRight className="h-5 w-5 text-indigo-600" />
+            </div>
           </div>
         </div>
       </div>
@@ -330,7 +354,7 @@ const TransitDriverDashboard = () => {
   
       <div className="mb-8">
         <h3 className="text-2xl font-bold text-gray-900 mb-3">
-          Order #{order.order_id}
+          OrderId {order.order_id}
         </h3>
         <div className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold bg-red-50 text-red-700">
           {order.status}
@@ -346,6 +370,9 @@ const TransitDriverDashboard = () => {
             </p>
             <p className="text-gray-800">
               Destination County Office: <span className="font-medium">{order.deliverCounty}</span>
+            </p>
+            <p className="text-sm font-medium text-gray-700">
+              Estimated Delivery Time: <span className="text-gray-900">{new Date(order.estimated_delivery).toLocaleString()}</span>
             </p>
           </div>
         </div>

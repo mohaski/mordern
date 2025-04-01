@@ -4,10 +4,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Package, CreditCard, Check, Banknote } from 'lucide-react';
 import { paymentStatus, createOrder, confirmOrder } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
 
+// Storage key for localStorage
 const STORAGE_KEY = 'orderCreationState';
 
-// Zod schemas (unchanged)
+// Zod schemas
 const senderSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email address"),
@@ -34,7 +36,29 @@ const parcelSchema = z.object({
   number_of_pieces: z.number().min(1, "At least 1 piece is required"),
 });
 
+// Define all cities
+const allCities = [
+  { value: 'mombasa', label: 'Mombasa' },
+  { value: 'voi', label: 'Voi' },
+  { value: 'nairobi', label: 'Nairobi' },
+  { value: 'nakuru', label: 'Nakuru' },
+  { value: 'eldoret', label: 'Eldoret' },
+  { value: 'kitale', label: 'Kitale' },
+];
+
+// Define city routes
+const cityRoutes = {
+  mombasa: ['voi', 'nairobi'],
+  voi: ['mombasa', 'nairobi'],
+  nairobi: ['mombasa', 'voi', 'nakuru', 'eldoret', 'kitale'],
+  nakuru: ['nairobi', 'eldoret', 'kitale'],
+  eldoret: ['nairobi', 'nakuru', 'kitale'],
+  kitale: ['nairobi', 'nakuru', 'eldoret'],
+};
+
 const OrderCreation = () => {
+  const navigate = useNavigate();
+
   const [step, setStep] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -49,16 +73,33 @@ const OrderCreation = () => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved).parcels || [] : [];
   });
+
   const [showNewParcelForm, setShowNewParcelForm] = useState(true);
+
   const [orderCost, setOrderCost] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved).orderCost || 0 : 0;
   });
-  const [updatedCostOrder, setUpdatedCostOrder] = useState({});
+
+  const [updatedCostOrder, setUpdatedCostOrder] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved).updatedCostOrder || {} : {};
+  });
+
   const [isPollingCost, setIsPollingCost] = useState(false);
+
   const [paymentTime, setPaymentTime] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved).paymentTime || null : null;
+  });
+
+  const [senderCounty, setSenderCounty] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    const savedSenderDetails = sessionStorage.getItem('senderDetails');
+    if (savedSenderDetails) {
+      return JSON.parse(savedSenderDetails).county;
+    }
+    return saved ? JSON.parse(saved).senderCounty || '' : '';
   });
 
   // Save state to localStorage whenever it changes
@@ -67,23 +108,34 @@ const OrderCreation = () => {
       currentStep: step,
       parcels,
       orderCost,
+      updatedCostOrder,
       paymentTime,
+      senderCounty,
     }));
-  }, [step, parcels, orderCost, paymentTime]);
+  }, [step, parcels, orderCost, updatedCostOrder, paymentTime, senderCounty]);
 
-  // Trigger fetch and polling on mount if step is 4 and cost is not yet fetched
+  // Trigger fetch and polling on mount if step is 4
   useEffect(() => {
-    if (step === 4 && orderCost === 0) {
-      const order_id = sessionStorage.getItem('order_id');
+    const order_id = sessionStorage.getItem('order_id');
+    if (!order_id && step >= 4) {
+      console.warn('No order_id found in sessionStorage, resetting to step 1');
+      setStep(1);
+      return;
+    }
+
+    if (step === 4 || step === 5) {
+      if (updatedCostOrder.total_cost > 0) {
+        setOrderCost(updatedCostOrder.total_cost);
+        setIsPollingCost(false);
+        return;
+      }
+
       if (order_id) {
         fetchCostImmediately();
         startPollingCost();
-      } else {
-        console.warn('No order_id found in sessionStorage, resetting to step 1');
-        setStep(1); // Reset if order_id is missing
       }
     }
-  }, [step]); // Dependency on step ensures this runs when step changes
+  }, [step]);
 
   const handleAddParcel = (data) => {
     const newParcel = {
@@ -96,7 +148,7 @@ const OrderCreation = () => {
     resetParcel();
   };
 
-  // Form hooks (unchanged)
+  // Form hooks
   const { 
     register: senderRegister, 
     handleSubmit: senderHandleSubmit,
@@ -124,10 +176,11 @@ const OrderCreation = () => {
     resolver: zodResolver(parcelSchema),
   });
 
-  // Sender form submission (unchanged)
+  // Sender form submission
   const onSenderSubmit = async (data) => {
     try {
       const validatedData = senderSchema.parse(data);
+      setSenderCounty(validatedData.county); // Update senderCounty state
       sessionStorage.setItem('senderDetails', JSON.stringify(validatedData));
       setStep(2);
     } catch (error) {
@@ -135,7 +188,7 @@ const OrderCreation = () => {
     }
   };
 
-  // Receiver form submission (unchanged)
+  // Receiver form submission
   const onReceiverSubmit = async (data) => {
     try {
       const validatedData = receiverSchema.parse(data);
@@ -180,14 +233,18 @@ const OrderCreation = () => {
     }
   };
 
-  // Polling for order cost
+  // Polling for order cost with persistence
   const startPollingCost = () => {
-    if (isPollingCost) return; // Prevent multiple intervals
+    if (isPollingCost) return;
     setIsPollingCost(true);
+    const order_id = sessionStorage.getItem('order_id');
+    if (!order_id) {
+      setIsPollingCost(false);
+      return;
+    }
+
     const pollInterval = setInterval(async () => {
       try {
-        const order_id = sessionStorage.getItem('order_id');
-        if (!order_id) throw new Error('No order_id found in sessionStorage');
         const response = await paymentStatus(order_id);
         const data = response.data.order[0][0];
         setUpdatedCostOrder(data);
@@ -195,42 +252,64 @@ const OrderCreation = () => {
           setOrderCost(data.total_cost);
           setIsPollingCost(false);
           clearInterval(pollInterval);
+
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            currentStep: step,
+            parcels,
+            orderCost: data.total_cost,
+            updatedCostOrder: data,
+            paymentTime,
+            senderCounty,
+          }));
         }
       } catch (error) {
         console.error('Error polling cost:', error);
       }
-    }, 30000); // Poll every 30 seconds
+    }, 30000);
 
-    // Cleanup interval when component unmounts or polling stops
     return () => clearInterval(pollInterval);
   };
 
-  // Confirm order with selected payment time (unchanged)
+  // Confirm order with selected payment time and redirect to homepage
   const handleConfirmOrder = async () => {
     try {
-      const order_id = sessionStorage.getItem('order_id');
-      if (!order_id || !paymentTime) {
-        throw new Error('Order ID or payment time missing');
+      if (!updatedCostOrder || !paymentTime) {
+        throw new Error('Order or payment time missing');
       }
 
-      const response = await confirmOrder(order_id, paymentTime);
+      const response = await confirmOrder(updatedCostOrder, paymentTime);
       console.log('Order confirmed:', response.data);
 
+      // Clear all stored data after confirmation
       localStorage.removeItem(STORAGE_KEY);
       sessionStorage.removeItem('senderDetails');
       sessionStorage.removeItem('receiverDetails');
       sessionStorage.removeItem('order_id');
       setParcels([]);
       setOrderCost(0);
+      setUpdatedCostOrder({});
       setPaymentTime(null);
+      setSenderCounty(''); // Reset senderCounty
       setStep(1);
+
+      // Redirect to homepage
+      navigate('/');
     } catch (error) {
       console.error('Confirm Order Error:', error);
       alert('Failed to confirm order: ' + (error.message || 'Unknown error'));
     }
   };
 
-  // Render current step (unchanged except Step 5 for completeness)
+  // Function to get receiver cities based on sender's city
+  const getReceiverCities = () => {
+    if (!senderCounty) {
+      return [];
+    }
+    const connectedCities = cityRoutes[senderCounty] || [];
+    return allCities.filter(city => connectedCities.includes(city.value));
+  };
+
+  // Render current step
   const renderStep = () => {
     switch (step) {
       case 1:
@@ -253,8 +332,11 @@ const OrderCreation = () => {
                   <label className="form-label">City*</label>
                   <select {...senderRegister('county')} className="form-select">
                     <option value="">Select city</option>
-                    <option value="mombasa">Mombasa</option>
-                    <option value="nairobi">Nairobi</option>
+                    {allCities.map(city => (
+                      <option key={city.value} value={city.value}>
+                        {city.label}
+                      </option>
+                    ))}
                   </select>
                   {senderErrors.county && <p className="text-sm text-red-600 mt-1">{senderErrors.county.message}</p>}
                 </div>
@@ -287,6 +369,20 @@ const OrderCreation = () => {
         );
 
       case 2:
+        if (!senderCounty) {
+          return (
+            <div>
+              <h2 className="text-lg mb-6">Please fill in the sender details first</h2>
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="px-6 py-2 bg-red-600 text-white rounded-md"
+              >
+                Go to Sender Details
+              </button>
+            </div>
+          );
+        }
         return (
           <div>
             <h2 className="text-lg mb-6">Please fill in the receiver details</h2>
@@ -306,8 +402,11 @@ const OrderCreation = () => {
                   <label className="form-label">City*</label>
                   <select {...receiverRegister('county')} className="form-select">
                     <option value="">Select city</option>
-                    <option value="mombasa">Mombasa</option>
-                    <option value="nairobi">Nairobi</option>
+                    {getReceiverCities().map(city => (
+                      <option key={city.value} value={city.value}>
+                        {city.label}
+                      </option>
+                    ))}
                   </select>
                   {receiverErrors.county && <p className="text-sm text-red-600 mt-1">{receiverErrors.county.message}</p>}
                 </div>
@@ -506,7 +605,7 @@ const OrderCreation = () => {
         <div className="progress-line">
           <div className="progress-line-fill" style={{ width: `${((step - 1) / 4) * 100}%` }} />
         </div>
-        {['Sender details', 'Receiver details', 'Parcel details', 'Payment', 'Confirmation'].map((label, idx) => (
+        {['Sender details', 'Receiver details', 'Parcel details', 'Payment details', 'Confirmation'].map((label, idx) => (
           <div key={idx} className="progress-step">
             <div className={`step-number ${step === idx + 1 ? 'active' : step > idx + 1 ? 'completed' : ''}`}>
               {step > idx + 1 ? <Check size={16} /> : idx + 1}

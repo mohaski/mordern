@@ -31,27 +31,28 @@ const generateTrackingNumber = async () => {
 // Import correction (should be require instead of import for CommonJS)
 require('dotenv').config(); // Load environment variables from .env file
 
-// Looking to send emails in production? Check out our Email API/SMTP product!
-const nodemailer = require("nodemailer");
-const { MailtrapClient } = require("mailtrap");
 
-const TOKEN = "47549598efe2da0d422d7958af67cf69";
+const nodemailer  = require('nodemailer'); // use mailer nodejs module
 
-const sendEmail = (senderEmail,senderName, recipientsEmail) => {
-  const client = new MailtrapClient({ token: TOKEN });
 
-  const sender = { name: senderName, email: senderEmail };
 
-  client
-    .send({
-      from: sender,
-      to: [{ email: recipientsEmail }],
-      subject: "Hello from Mailtrap!",
-      text: "Welcome to Mailtrap Sending!",
-    })
-    .then(console.log)
-    .catch(console.error);
-};
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.email",
+  port: 587,
+  secure: false, // true for port 465, false for other ports
+  auth: {
+    user: "mohaski24@gmailcom",
+    pass: "kfmubjhjpnlthbxd",
+  },
+})
+
+var sendMail = (to, sub, msg) => {
+  transporter.sendMail({
+    to: to,
+    subject: sub,
+    html: msg
+  })
+}
 
 
 
@@ -178,6 +179,8 @@ const orderCreation = async (req, res) => {
   const senderjson = JSON.parse(sender)
   const receiverjson = JSON.parse(receiver)
 
+  console.log(senderjson)
+
 
   // Validate sender and receiver data
   if (!sender || !receiver) {
@@ -235,6 +238,7 @@ const orderCreation = async (req, res) => {
       senderEmail: senderjson.email,
       senderPhone_number: senderjson.phone_number,
       pickupCounty: senderjson.county,
+      pickupstreet_name: senderjson.street_name,
       pickupbuilding_name: senderjson.building_name,
       pickupnearest_landmark: senderjson.nearest_landmark,
       receiverName: receiverjson.name,
@@ -267,7 +271,7 @@ const orderCreation = async (req, res) => {
     await db.query("INSERT INTO parcels (order_id, content, weight, number_of_pieces) VALUES ?", [
     parcelData.map((parcel) => [parcel.order_id, parcel.content, parcel.weight, parcel.number_of_pieces]),
     ]);
-    sendEmail('mohaski24@gmail.com', 'Modern Cargo', 'brotherlyreminder@gmail.com');
+    //sendEmail('mohaski24@gmail.com', 'Modern Cargo', 'brotherlyreminder@gmail.com');
     res.status(200).json({
       message: 'order and parcel added successfully',
       order_id: result.insertId
@@ -298,26 +302,29 @@ const getOrderpaymentUpdateStatus = async(req, res) => {
 }
 
 const confirmOrder = async (req, res) => {
-  const {payment_time, order_id} = req.body;
-  console.log(payment_time, order_id)
-  if (!order_id) {
+  const {payment_time, order} = req.body;
+  console.log(payment_time, order)
+  if (!order ) {
     return res.status(400).json({ message: "Order ID is required" });
   }else if (!payment_time ) {
     return res.status(400).json({ message: "payment_time is required" });
   }
+  console.log(order.order_id)
   try {
     //const { order_id } = req.params; // Or req.body if it's in the request body
 
     const trackingNumber = await generateTrackingNumber();
 
     const query = `UPDATE temporders SET status = ?, tracking_number = ?, payment_time = ? WHERE order_id = ?`;
-    const values = ['To be collected', trackingNumber, payment_time, order_id];
+    const values = ['To be collected', trackingNumber, payment_time, order.order_id];
 
     const [result] =  await db.query(query, values);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Order not found" });
     }
+
+    sendMail(order.senderEmail, 'ggfdbfgfg', 'you are fucked');
 
     return res.status(200).json({ 
       message: "Order confirmed",

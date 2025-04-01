@@ -11,6 +11,48 @@ const sanitizeOrders = (orders) => {
   ));
 };
 
+// Utility to format dates safely
+const formatDate = (dateString) => {
+  if (!dateString || typeof dateString !== 'string') {
+    return 'Not available';
+  }
+
+  const date = new Date(dateString);
+
+  if (isNaN(date.getTime())) {
+    let parts = dateString.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (parts) {
+      const reformatted = `${parts[3]}-${parts[1]}-${parts[2]}`;
+      const parsedDate = new Date(reformatted);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate.toLocaleString();
+      }
+    }
+
+    parts = dateString.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (parts) {
+      const reformatted = `${parts[3]}-${parts[2]}-${parts[1]}`;
+      const parsedDate = new Date(reformatted);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate.toLocaleString();
+      }
+    }
+
+    parts = dateString.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+    if (parts) {
+      const reformatted = `${parts[1]}-${parts[2]}-${parts[3]}`;
+      const parsedDate = new Date(reformatted);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate.toLocaleString();
+      }
+    }
+
+    return 'Not available';
+  }
+
+  return date.toLocaleString();
+};
+
 const CountyDriverDashboard = () => {
   const [activeTab, setActiveTab] = useState('collect');
   const [orders, setOrders] = useState(() => {
@@ -159,7 +201,7 @@ const CountyDriverDashboard = () => {
 
       const attendingCountyOffice = JSON.parse(sessionStorage.getItem('user')).user_id
       
-      await confirmPickup(selectedOrder.order_id, attendingCountyOffice );
+      await confirmPickup(selectedOrder.order_id, attendingCountyOffice, paymentMethod );
       setOrders(prev => {
         const order = prev.selectedCollections.find(o => o.order_id === orderId);
         return {
@@ -200,7 +242,7 @@ const CountyDriverDashboard = () => {
       setShowPaymentModal(false);
       setProcessingOrder(null);
       setSelectedOrder(null);
-      setActiveTab('deliver');
+      setActiveTab('confirm-delivery');
     } catch (err) {
       console.error('Confirm delivery error:', err);
       setError(err.message || 'Failed to confirm delivery');
@@ -284,7 +326,7 @@ const CountyDriverDashboard = () => {
       >
         <div className="flex items-center mb-2">
           <Package className="h-4 w-4 text-gray-400 mr-1.5" />
-          <span className="font-medium text-gray-900">#{orderId}</span>
+          <span className="font-medium text-gray-900">#orderId {orderId}</span>
         </div>
         {showPickup && (
           <div className="flex items-start mt-2">
@@ -307,12 +349,19 @@ const CountyDriverDashboard = () => {
                 <p>{order.delivery_building_name}</p>
                 <p>{order.delivery_street_name}</p>
               </div>
+              {type === 'select' && activeTab === 'deliver' && (
+                <div className="mt-2">
+                  <p className="font-medium text-gray-700">Estimated Delivery Time</p>
+                  <p className="text-gray-600">{formatDate(order.estimated_delivery)}</p>
+                </div>
+              )}
             </div>
           </div>
         )}
         {onAction && (
-          <div className="flex justify-end mt-2">
-            <ArrowRight className="h-4 w-4 text-gray-400" />
+          <div className="flex items-center justify-end mt-4 space-x-2">
+            <span className="text-sm text-gray-700 font-medium">SELECT</span>
+            <ArrowRight className="h-5 w-5 text-indigo-600" />
           </div>
         )}
       </div>
@@ -334,7 +383,7 @@ const CountyDriverDashboard = () => {
           </button>
         </div>
         <div className="mb-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Order #{order.order_id}</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">orderId {order.order_id}</h3>
           <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
             {isPickupSection ? 'Ready for Pickup' : 'Ready for Delivery'}
           </div>

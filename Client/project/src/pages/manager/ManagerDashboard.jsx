@@ -1,68 +1,94 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, TrendingUp, Clock, AlertCircle } from 'lucide-react';
+import { useAuth } from '../../contexts/authContext';
+import { getOrderManagerOrders } from '../../services/api';
 
 const ManagerDashboard = () => {
+  const { user } = useAuth(); // Get the logged-in user (includes county)
   const [dashboardData, setDashboardData] = useState({
     stats: {
       total_orders: 0,
       pending_orders: 0,
-      problem_orders: 0,
-      completed_today: 0
     },
-    recentOrders: []
+    pendingOrders: [],
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    // Simulated data since we don't have a backend yet
-    setTimeout(() => {
+  // Function to fetch and process orders
+  const fetchOrders = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const county = JSON.parse(sessionStorage.getItem('user')).county
+      const user_id = JSON.parse(sessionStorage.getItem('user'))?.id
+
+      console.log(user_id);
+
+      // Fetch orders for the user's county
+      const orders = ((await getOrderManagerOrders(county)).data.orders);
+      console.log(orders)
+
+      // Compute stats from orders
+      const stats = {
+        total_orders: orders.filter(order => order.served_by === `${user_id}`).length,
+        pending_orders: orders.filter(order => order.status === 'Pending Cost Calculation').length,
+      };
+
+      // Get the 5 most recent orders (or adjust as needed)
+      const pendingOrders = orders
+      .filter(order => order.status === 'Pending Cost Calculation') // Filter only relevant orders
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) // Sort by updated_at descending
+      .slice(0, 5); // Take the top 5
+
+      console.log(pendingOrders)
       setDashboardData({
-        stats: {
-          total_orders: 248,
-          pending_orders: 15,
-          problem_orders: 3,
-          completed_today: 42
-        },
-        recentOrders: [
-          {
-            id: 1,
-            tracking_number: 'MC123456',
-            customer_name: 'John Doe',
-            status: 'pending',
-            current_location: 'Nairobi'
-          },
-          {
-            id: 2,
-            tracking_number: 'MC123457',
-            customer_name: 'Jane Smith',
-            status: 'in_transit',
-            current_location: 'Mombasa'
-          }
-        ]
+        stats,
+        pendingOrders,
       });
+    } catch (err) {
+      setError(err.message);
+    } finally {
       setIsLoading(false);
-    }, 1000);
-  }, []);
+    }
+  };
+
+  // Fetch orders on mount and every minute
+  useEffect(() => {
+    // Initial fetch
+    fetchOrders();
+
+    // Set up interval to fetch every minute (60 seconds)
+    const intervalId = setInterval(fetchOrders, 60 * 1000);
+
+    // Clean up interval on unmount
+    return () => clearInterval(intervalId);
+  }, [user.county]); // Re-run if user.county changes
 
   const statusBadge = (status) => {
     const statusStyles = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      in_transit: 'bg-blue-100 text-blue-800',
-      delivered: 'bg-green-100 text-green-800',
-      problem: 'bg-red-100 text-red-800'
+      'Pending Cost Calculation': 'bg-yellow-100 text-yellow-800',
     };
-    
+
     return (
-      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusStyles[status]}`}>
-        {status.replace('_', ' ').toUpperCase()}
+      <span
+        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+          statusStyles[status] || 'bg-gray-100 text-gray-800'
+        }`}
+      >
+        {status ? status.replace('_', ' ').toUpperCase() : 'UNKNOWN'}
       </span>
     );
   };
 
-  if (isLoading) return <div className="text-center p-8">Loading dashboard...</div>;
-  if (error) return <div className="text-center p-8 text-red-600">Error: {error}</div>;
+  if (isLoading && !dashboardData.pendingOrders.length) {
+    return <div className="text-center p-8">Loading dashboard...</div>;
+  }
+  if (error) {
+    return <div className="text-center p-8 text-red-600">Error: {error}</div>;
+  }
 
   return (
     <div className="p-6">
@@ -83,32 +109,23 @@ const ManagerDashboard = () => {
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-          <DashboardCard 
+          <DashboardCard
             icon={<Package className="h-6 w-6" />}
             title="Total Orders"
             value={dashboardData.stats.total_orders}
           />
-          <DashboardCard 
+          <DashboardCard
             icon={<Clock className="h-6 w-6" />}
             title="Pending Orders"
             value={dashboardData.stats.pending_orders}
           />
-          <DashboardCard 
-            icon={<AlertCircle className="h-6 w-6" />}
-            title="Needs Attention"
-            value={dashboardData.stats.problem_orders}
-          />
-          <DashboardCard 
-            icon={<TrendingUp className="h-6 w-6" />}
-            title="Completed Today"
-            value={dashboardData.stats.completed_today}
-          />
+          
         </div>
 
-        {/* Recent Orders Table */}
+        {/* Pending Orders Table */}
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-            <h3 className="text-lg leading-6 font-medium text-gray-900">Recent Orders</h3>
+            <h3 className="text-lg leading-6 font-medium text-gray-900">Pending Orders</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -117,25 +134,15 @@ const ManagerDashboard = () => {
                   <TableHeader>Order ID</TableHeader>
                   <TableHeader>Customer</TableHeader>
                   <TableHeader>Status</TableHeader>
-                  <TableHeader>Location</TableHeader>
-                  <TableHeader>Action</TableHeader>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {Array.isArray(dashboardData.recentOrders) && dashboardData.recentOrders.map(order => (
+                {dashboardData.pendingOrders.map(order => (
                   <tr key={order.id}>
-                    <TableCell>#{order.tracking_number}</TableCell>
-                    <TableCell>{order.customer_name}</TableCell>
+                    <TableCell>#{order.order_id}</TableCell>
+                    <TableCell>{order.SenderName}</TableCell>
                     <TableCell>{statusBadge(order.status)}</TableCell>
-                    <TableCell>{order.current_location}</TableCell>
-                    <TableCell>
-                      <Link 
-                        to={`/orders/${order.id}`}
-                        className="text-red-600 hover:text-red-900 transition-colors duration-200"
-                      >
-                        View Details
-                      </Link>
-                    </TableCell>
+                   
                   </tr>
                 ))}
               </tbody>
@@ -156,9 +163,7 @@ const DashboardCard = ({ icon, title, value }) => (
       </div>
       <div className="ml-4">
         <dt className="text-sm font-medium text-gray-500">{title}</dt>
-        <dd className="mt-1 text-2xl font-semibold text-gray-900">
-          {value || 0}
-        </dd>
+        <dd className="mt-1 text-2xl font-semibold text-gray-900">{value || 0}</dd>
       </div>
     </div>
   </div>
@@ -171,9 +176,7 @@ const TableHeader = ({ children }) => (
 );
 
 const TableCell = ({ children }) => (
-  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-    {children}
-  </td>
+  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{children}</td>
 );
 
 export default ManagerDashboard;

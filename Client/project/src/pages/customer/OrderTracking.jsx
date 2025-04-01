@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Package, Truck, CheckCircle } from 'lucide-react';
+import { Search, Package, Truck, CheckCircle, Clock } from 'lucide-react';
 import { trackOrder } from '../../services/api';
 
 const OrderTracking = () => {
@@ -10,15 +10,18 @@ const OrderTracking = () => {
   const [error, setError] = useState(null);
 
   const getStatusStep = (currentStatus, stepStatus) => {
+    // Normalize statuses to lowercase with underscores
     const steps = {
-      'Pending Cost Calculation': 0,
-      'Awaiting Confirmation': 1,
-      'collected': 2,
-      'In Transit': 3,
-      'Delivered': 4
+      'pending_cost_calculation': 0,
+      'collected': 1,
+      'in_transit': 2,
+      'delivered': 3,
     };
-    const currentStep = steps[currentStatus] || 0;
-    const step = steps[stepStatus] || 0;
+    const normalizedCurrentStatus = currentStatus ? currentStatus.toLowerCase() : '';
+    const normalizedStepStatus = stepStatus.toLowerCase();
+
+    const currentStep = steps[normalizedCurrentStatus] || 0;
+    const step = steps[normalizedStepStatus] || 0;
 
     if (step === currentStep) return 'current';
     if (step < currentStep) return 'passed';
@@ -39,14 +42,14 @@ const OrderTracking = () => {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) return 'Not yet available';
     return new Date(dateString).toLocaleString('en-US', {
       month: 'long',
       day: 'numeric',
       year: 'numeric',
       hour: 'numeric',
       minute: 'numeric',
-      hour12: true
+      hour12: true,
     });
   };
 
@@ -109,13 +112,15 @@ const OrderTracking = () => {
           <div className="mb-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Tracking Details</h2>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                orderData.status === 'delivered' 
-                  ? 'bg-green-100 text-green-800'
-                  : orderData.status === 'in_transit'
-                  ? 'bg-blue-100 text-blue-800'
-                  : 'bg-yellow-100 text-yellow-800'
-              }`}>
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  orderData.status === 'delivered'
+                    ? 'bg-green-100 text-green-800'
+                    : orderData.status === 'in_transit'
+                    ? 'bg-blue-100 text-blue-800'
+                    : 'bg-yellow-100 text-yellow-800'
+                }`}
+              >
                 {orderData.status.replace('_', ' ').toUpperCase()}
               </span>
             </div>
@@ -135,13 +140,26 @@ const OrderTracking = () => {
             {/* Package Received */}
             <div className="relative flex">
               <div className="flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStepStyles(orderData.status, 'pending')}`}>
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ${getStepStyles(
+                    orderData.status,
+                    'pending_cost_calculation'
+                  )}`}
+                >
                   <Package className="h-5 w-5 text-white" />
                 </div>
-                <div className={`flex-1 w-px my-2 ${getLineStyles(orderData.status, 'processing')}`}></div>
+                <div
+                  className={`flex-1 w-px my-2 ${getLineStyles(orderData.status, 'collected')}`}
+                ></div>
               </div>
               <div className="ml-4 flex-1">
-                <h3 className={`font-medium ${getStatusStep(orderData.status, 'pending') !== 'future' ? 'text-gray-900' : 'text-gray-500'}`}>
+                <h3
+                  className={`font-medium ${
+                    getStatusStep(orderData.status, 'pending_cost_calculation') !== 'future'
+                      ? 'text-gray-900'
+                      : 'text-gray-500'
+                  }`}
+                >
                   Package Received
                 </h3>
                 <p className="text-sm text-gray-500">{formatDate(orderData.created_at)}</p>
@@ -149,22 +167,37 @@ const OrderTracking = () => {
               </div>
             </div>
 
+            
+
             {/* Picked Up */}
             <div className="relative flex">
               <div className="flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStepStyles(orderData.status, 'picked_up')}`}>
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ${getStepStyles(
+                    orderData.status,
+                    'collected'
+                  )}`}
+                >
                   <Truck className="h-5 w-5 text-white" />
                 </div>
-                <div className={`flex-1 w-px my-2 ${getLineStyles(orderData.status, 'in_transit')}`}></div>
+                <div
+                  className={`flex-1 w-px my-2 ${getLineStyles(orderData.status, 'in_transit')}`}
+                ></div>
               </div>
               <div className="ml-4 flex-1">
-                <h3 className={`font-medium ${getStatusStep(orderData.status, 'picked_up') !== 'future' ? 'text-gray-900' : 'text-gray-500'}`}>
+                <h3
+                  className={`font-medium ${
+                    getStatusStep(orderData.status, 'collected') !== 'future'
+                      ? 'text-gray-900'
+                      : 'text-gray-500'
+                  }`}
+                >
                   Picked Up
                 </h3>
                 <p className="text-sm text-gray-500">{formatDate(orderData.pickup_time)}</p>
                 <p className="text-sm text-gray-600 mt-1">
-                  {getStatusStep(orderData.status, 'picked_up') !== 'future'
-                    ? `Package picked up from ${orderData.pickup_location}`
+                  {getStatusStep(orderData.status, 'collected') !== 'future'
+                    ? `Package picked up`
                     : 'Awaiting pickup'}
                 </p>
               </div>
@@ -173,19 +206,32 @@ const OrderTracking = () => {
             {/* In Transit */}
             <div className="relative flex">
               <div className="flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStepStyles(orderData.status, 'in_transit')}`}>
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ${getStepStyles(
+                    orderData.status,
+                    'in_transit'
+                  )}`}
+                >
                   <Truck className="h-5 w-5 text-white" />
                 </div>
-                <div className={`flex-1 w-px my-2 ${getLineStyles(orderData.status, 'delivered')}`}></div>
+                <div
+                  className={`flex-1 w-px my-2 ${getLineStyles(orderData.status, 'delivered')}`}
+                ></div>
               </div>
               <div className="ml-4 flex-1">
-                <h3 className={`font-medium ${getStatusStep(orderData.status, 'in_transit') !== 'future' ? 'text-gray-900' : 'text-gray-500'}`}>
+                <h3
+                  className={`font-medium ${
+                    getStatusStep(orderData.status, 'in_transit') !== 'future'
+                      ? 'text-gray-900'
+                      : 'text-gray-500'
+                  }`}
+                >
                   In Transit
                 </h3>
                 <p className="text-sm text-gray-500">{formatDate(orderData.transit_start_time)}</p>
                 <p className="text-sm text-gray-600 mt-1">
                   {getStatusStep(orderData.status, 'in_transit') !== 'future'
-                    ? `Package in transit from ${orderData.pickup_location} to ${orderData.delivery_location}`
+                    ? `Package in transit`
                     : 'Awaiting transit'}
                 </p>
               </div>
@@ -194,18 +240,29 @@ const OrderTracking = () => {
             {/* Delivered */}
             <div className="relative flex">
               <div className="flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStepStyles(orderData.status, 'delivered')}`}>
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ${getStepStyles(
+                    orderData.status,
+                    'delivered'
+                  )}`}
+                >
                   <CheckCircle className="h-5 w-5 text-white" />
                 </div>
               </div>
               <div className="ml-4 flex-1">
-                <h3 className={`font-medium ${getStatusStep(orderData.status, 'delivered') !== 'future' ? 'text-gray-900' : 'text-gray-500'}`}>
+                <h3
+                  className={`font-medium ${
+                    getStatusStep(orderData.status, 'delivered') !== 'future'
+                      ? 'text-gray-900'
+                      : 'text-gray-500'
+                  }`}
+                >
                   Delivered
                 </h3>
                 <p className="text-sm text-gray-500">{formatDate(orderData.delivery_time)}</p>
                 <p className="text-sm text-gray-600 mt-1">
                   {getStatusStep(orderData.status, 'delivered') !== 'future'
-                    ? `Package delivered successfully to ${orderData.delivery_location}`
+                    ? `Package delivered successfully`
                     : 'Delivery pending'}
                 </p>
               </div>

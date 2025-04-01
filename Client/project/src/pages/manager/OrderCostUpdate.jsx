@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Package, AlertCircle, MapPin } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { getPendingPayments } from '../../services/api';
 
 const OrderCostUpdate = () => {
@@ -9,11 +9,16 @@ const OrderCostUpdate = () => {
   const [error, setError] = useState(null);
   const [costs, setCosts] = useState({});
   const navigate = useNavigate();
+  const location = useLocation(); // Access query parameters
 
   const FETCH_INTERVAL = 30000; // 30 seconds in milliseconds
 
   useEffect(() => {
-    // Initial fetch
+    // Parse query parameters
+    const queryParams = new URLSearchParams(location.search);
+    const shouldRefresh = queryParams.get('refresh') === 'true';
+
+    // Initial fetch (immediate if refresh is true)
     fetchPendingOrders();
 
     // Set up interval to fetch every 30 seconds
@@ -27,22 +32,22 @@ const OrderCostUpdate = () => {
       console.log('Clearing fetch interval');
       clearInterval(intervalId);
     };
-  }, []); // Empty dependency array ensures this runs only on mount/unmount
+  }, [location]); // Re-run if location changes (e.g., on redirect)
 
   const fetchPendingOrders = async () => {
     try {
       const county = JSON.parse(sessionStorage.getItem('user'))?.county;
       if (!county) throw new Error('County not found in session storage');
-      
+
       console.log('Fetching pending orders for county:', county);
       const response = await getPendingPayments(county);
-      
+
       setOrders(response.data.orders);
       console.log(response);
-      
+
       setCosts(prev => {
         const updatedCosts = response.data.orders.reduce((acc, order) => {
-          acc[order.id] = prev[order.id] || ''; // Preserve existing costs or initialize empty
+          acc[order.id] = prev[order.id] || '';
           return acc;
         }, {});
         return updatedCosts;
@@ -54,12 +59,11 @@ const OrderCostUpdate = () => {
       setLoading(false);
     }
   };
-  
 
   const handleCostChange = (orderId, value) => {
     setCosts(prev => ({
       ...prev,
-      [orderId]: value
+      [orderId]: value,
     }));
   };
 

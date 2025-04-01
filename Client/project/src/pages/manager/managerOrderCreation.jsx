@@ -517,18 +517,18 @@ const ManagerOrderCreation = () => {
                   <span className="text-gray-600">Cash</span>
                 </button>
                 <button 
-                  onClick={() => setPaymentMethod('card')}
+                  onClick={() => setPaymentMethod('mpesa')}
                   className={`w-full aspect-square rounded-lg border-2 ${
                     paymentMethod === 'card' ? 'border-red-500' : 'border-gray-200'
                   } hover:border-red-500 flex flex-col items-center justify-center transition-colors`}
                 >
                   <CreditCard className="w-8 h-8 mb-2 text-gray-600" />
-                  <span className="text-gray-600">Credit Card</span>
+                  <span className="text-gray-600">Mpesa</span>
                 </button>
               </div>
             </div>
             
-            <div className="flex justify-between">
+            <div className="flex justify-end">
               <button
                 onClick={handleConfirmOrder}
                 disabled={isLoading || !paymentMethod}
@@ -551,7 +551,7 @@ const ManagerOrderCreation = () => {
         <div className="progress-line">
           <div 
             className="progress-line-fill" 
-            style={{ width: `${((step - 1) / 4) * 100}%` }} 
+            style={{ width: `${((step - 1) / 3) * 100}%` }} 
           />
         </div>
         {['Sender details', 'Receiver details', 'Parcel details', 'Payment'].map((label, idx) => (

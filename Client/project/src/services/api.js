@@ -58,7 +58,7 @@ export const saveParcels = (parcelsData) => API.post('/online/sendersDetails/rec
 export const createOrder = (sender, receiver, parcels ) => API.post('/online/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation', {sender, receiver, parcels});
 
 // Confirm Order
-export const confirmOrder = (order_id, payment_time) => API.post(`/online/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation/waitingPaymentUpdate/${order_id}/confirmOrder`, {order_id, payment_time});
+export const confirmOrder = (order, payment_time) => API.post(`/online/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation/waitingPaymentUpdate/${order.order_id}/confirmOrder`, {order, payment_time});
 
 // Get Session Data
 export const getSession = () => API.get('/get-session');
@@ -70,17 +70,20 @@ export const trackOrder = (tracking_number) => API.get(`/customer/order/track/${
 
 //////////// order manager ////////////////////
 
+export const getOrderManagerOrders = (county) => API.get(`cashier/orders/${county}`);
+
 export const walk_inSaveSender = (senderData) => API.post('/walk-in/senderDetails', senderData);
 
 export const getPendingPayments = (county) => API.get(`/cashier/pendingPayments/${county}`);
 
 export const getPayment = (order_id) => API.get(`/cashier/pendingPayments/payment/${order_id}`);
 
-export const processPayment = (order_id, amounts, total_cost) => API.post('/cashier/updatepayment/:order_id/updateOrderCost', {order_id, amounts, total_cost});
+export const processPayment = (order_id, amounts, total_cost) => API.post(`/cashier/updatepayment/${order_id}/updateOrderCost`, {order_id, amounts, total_cost});
 
-export const createOrderManager = (county, sender, receiver, parcels, total_cost ) => API.post('/walk-in/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation', {county, sender, receiver, parcels, total_cost});
+export const createOrderManager = (county,sender, receiver, parcels, total_cost ) => API.post('/walk-in/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation', {county, sender, receiver, parcels, total_cost});
 
 export const orderManagerConfirmOrder = (order_id, payment_mode ) => API.post('/walk-in/sendersDetails/receiverDetails/parcelDetails/orderCreation&parcleCreation/orderManagerconfirmOrder', {order_id, payment_mode});
+
 
 
 
@@ -92,7 +95,7 @@ export const getDeliveryTasks = (county) => API.get(`/county_Driver/DeliveryTask
 
 export const getParcelDetails = (order_id) => API.get(`/parcels/${order_id}`)
 
-export const confirmPickup = (order_id, user_id) => API.post(`/county_Driver//getOrderParcelDetails/:order_id/confirmPickup`, {order_id, user_id});
+export const confirmPickup = (order_id, user_id, payment_mode) => API.post(`/county_Driver//getOrderParcelDetails/:order_id/confirmPickup`, {order_id, user_id, payment_mode});
 
 export const confirmPickupDropoff = (orders) => API.post(`/county_Driver//getOrderParcelDetails/:order_id/confirmPickup/getPickedOrders/confirmPickupDropoff`, [orders]);
 
@@ -117,17 +120,25 @@ export const confirmPickupforTransfer = (orders) => API.post('/transit_Driver/pi
 
 
 
-
-
-
-
-
-
-
-
-
 export const changePassword = (order_id, user_id) => API.post(`/county_Driver//getOrderParcelDetails/:order_id/confirmPickup`, {order_id, user_id});
 
+export const getStaffList = (county) => API.get(`/officeManager/staffList/${county}`);
+
+export const createStaff = (name, email, role, county, route_id ) => API.post('/officeManager/registerOfficeStaff', {name, email, role, county, route_id });
+
+export const deleteStaff = (id) => API.delete(`/officeManager/deleteStaff/${id}`);
 
 
+export const getOrdersByOrderManager = (startDate, endDate, user_id) => 
+API.get('/officeManager/ordersByOrderManager', { 
+      params: { startDate, endDate, user_id } 
+  });
+
+export const getOrdersDeliveredByDriver = (startDate, endDate, user_id) => API.get('/officeManager/orders-delivered-by-driver', { params: { startDate, endDate, user_id } });
+
+export const getPendingOrders = () => API.get('/officeManager/pendingOrders');
+
+export const getOrderManagers = (county) => API.get(`/officeManager/orderManagers/${county}`);
+
+export const getCountyDrivers = (county) => API.get(`/officeManager/countyDrivers/${county}`);
 
